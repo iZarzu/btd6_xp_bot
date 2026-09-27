@@ -43,11 +43,12 @@ other windows or on a second monitor. Run the game in **windowed / borderless mo
 ### Installation (Windows)
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python -m btd6bot          # opens the configuration window
+git clone -b claude/eager-johnson-sbuq7p https://github.com/iZarzu/btd6_xp_bot.git
+cd btd6_xp_bot
+start.bat                  # first run: creates .venv + installs requirements, then opens the GUI
 ```
+
+`start.bat` uses its own `.venv`, so it does not matter which `python` is first on your PATH.
 
 In the game: enable **Auto Start**, keep default hotkeys (or edit them in `config.yaml`).
 
@@ -143,11 +144,12 @@ pod innymi oknami albo na drugim monitorze. Uruchom grę **w oknie / bez ramki, 
 ### Instalacja (Windows)
 
 ```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-python -m btd6bot          # otwiera okno konfiguracji
+git clone -b claude/eager-johnson-sbuq7p https://github.com/iZarzu/btd6_xp_bot.git
+cd btd6_xp_bot
+start.bat                  # pierwsze uruchomienie: tworzy .venv, instaluje biblioteki i otwiera GUI
 ```
+
+`start.bat` używa własnego `.venv`, więc nie ma znaczenia, który `python` jest pierwszy w PATH.
 
 W grze: włącz **Auto Start**, zostaw domyślne skróty (albo popraw je w `config.yaml`).
 

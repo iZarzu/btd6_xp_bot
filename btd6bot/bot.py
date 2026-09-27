@@ -91,9 +91,13 @@ class Bot:
     # ------------------------------------------------------------------ game / gra
     def wait_until_in_game(self) -> None:
         if self.templates.exists("ingame"):
-            if not self.wait_for_template("ingame", self.timings["load_timeout"]):
+            if self.wait_for_template("ingame", self.timings["load_timeout"]):
+                log.info("Map loaded.")
+            else:
                 log.warning("In-game screen ('ingame') not detected, continuing anyway.")
         else:
+            log.info("Waiting %d s for the map to load - capture the 'ingame' template to start right away.",
+                     self.timings["load_delay"])
             self.control.sleep(self.timings["load_delay"])
         self.control.sleep(self.timings.get("after_load_delay", 1.0))
 
@@ -112,23 +116,26 @@ class Bot:
         started = getattr(self, "rounds_started", time.monotonic())
         deadline = started + self.timings["max_game_minutes"] * 60
         dismiss = self.cfg.get("dismiss_templates") or []
-        # A game of a fixed strategy takes about the same time - no need to look for the end earlier.
-        # PL: Gra przy stałej strategii trwa mniej więcej tyle samo - nie ma sensu szukać końca wcześniej.
-        delay = float(self.strategy.get("end_check_delay", 0) or 0)
-        if delay > 0:
-            log.info("Waiting %d s before checking for the end of the game.", delay)
-            self.control.sleep(max(0.0, started + delay - time.monotonic()))
+        # A game of a fixed strategy takes about the same time, so the end is looked for only after
+        # `end_check_delay`. Popups (e.g. level-up, which pauses the game) are handled the whole time.
+        # PL: Gra przy stałej strategii trwa mniej więcej tyle samo, więc końca szukamy dopiero po
+        # `end_check_delay`. Okienka (np. awans, który pauzuje grę) są obsługiwane przez cały czas.
+        end_after = started + float(self.strategy.get("end_check_delay", 0) or 0)
+        if end_after > time.monotonic():
+            log.info("Looking for the end of the game after %.0f s; popups are handled meanwhile.",
+                     end_after - started)
         while time.monotonic() < deadline:
             self.control.sleep(self.timings["check_interval"])
             frame = self.grab_gray()
             if frame is None:
                 continue
-            if self.templates.find("victory", frame):
-                log.info("Victory detected %.0f s after the rounds started.", time.monotonic() - started)
-                return "victory"
-            if self.templates.find("defeat", frame):
-                log.info("Defeat detected %.0f s after the rounds started.", time.monotonic() - started)
-                return "defeat"
+            if time.monotonic() >= end_after:
+                if self.templates.find("victory", frame):
+                    log.info("Victory detected %.0f s after the rounds started.", time.monotonic() - started)
+                    return "victory"
+                if self.templates.find("defeat", frame):
+                    log.info("Defeat detected %.0f s after the rounds started.", time.monotonic() - started)
+                    return "defeat"
             for name in dismiss:
                 pos = self.templates.find(name, frame)
                 if pos:
@@ -242,7 +249,9 @@ class Bot:
         """
         next_page = step["next_page"]
         max_pages = int(step.get("max_pages", 10))
-        page_timeout = float(step.get("page_timeout", 3))
+        # The list is static once shown, so a short look per page is enough.
+        # PL: Lista po wyświetleniu się nie zmienia, więc na każdej stronie wystarczy krótkie sprawdzenie.
+        page_timeout = float(step.get("page_timeout", 1.5))
         for page in range(max_pages + 1):
             pos = self.wait_for_template(name, page_timeout)
             if pos:

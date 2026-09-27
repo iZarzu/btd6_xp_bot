@@ -107,5 +107,17 @@ class TemplateLibrary:
         return best_pos if best_score >= self.threshold else None
 
 
+# Frames are matched at this width at most: 1080p is ~2x and 4K ~10x faster, with the same result
+# (positions are relative and templates are rescaled to the frame anyway).
+# PL: Klatki są dopasowywane najwyżej w tej szerokości: 1080p ~2x, a 4K ~10x szybciej, z tym samym
+# wynikiem (pozycje są względne, a szablony i tak są skalowane do klatki).
+WORK_WIDTH = 1280
+
+
 def to_gray(frame_bgr: np.ndarray) -> np.ndarray:
-    return cv2.cvtColor(np.ascontiguousarray(frame_bgr), cv2.COLOR_BGR2GRAY)
+    """Grayscale frame, downscaled to WORK_WIDTH for fast matching. / PL: Szara klatka zmniejszona do WORK_WIDTH."""
+    gray = cv2.cvtColor(np.ascontiguousarray(frame_bgr), cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape[:2]
+    if w > WORK_WIDTH:
+        gray = cv2.resize(gray, (WORK_WIDTH, round(h * WORK_WIDTH / w)), interpolation=cv2.INTER_AREA)
+    return gray

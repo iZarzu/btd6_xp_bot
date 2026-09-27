@@ -67,6 +67,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "tpl_ok": {"en": "'OK' in the mode rules popup", "pl": "'OK' w okienku zasad trybu"},
     "tpl_ingame": {"en": "static in-game HUD element (speeds up loading)",
                    "pl": "stały element HUD w grze (przyspiesza ładowanie)"},
+    "tpl_restart": {"en": "'Restart' button on the DEFEAT screen (restart without the menu)",
+                    "pl": "przycisk 'Restart' na ekranie PRZEGRANEJ (restart bez menu)"},
     "tpl_levelup": {"en": "level-up popup", "pl": "okienko awansu poziomu"},
     # --- monkeys tab / zakładka małpek
     "tab_monkeys": {"en": "2. Monkeys", "pl": "2. Małpki"},

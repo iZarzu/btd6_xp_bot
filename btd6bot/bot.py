@@ -90,10 +90,7 @@ class Bot:
                 log.info("Result: %s | %s", result, self.stats.summary())
                 if self.on_stats:
                     self.on_stats(self.stats)
-                # After a win BTD6 only offers Home / Preview / Freeplay, so every game starts from the menu.
-                # PL: Po wygranej BTD6 daje tylko Home / Preview / Freeplay, więc każda gra startuje z menu.
-                self.run_sequence(self.post_game_sequence(result))
-                need_menu = True
+                need_menu = not self.after_game(result)
         except StopRequested:
             log.info("Stopped. %s", self.stats.summary())
         finally:
@@ -101,6 +98,26 @@ class Bot:
                 self.stats.finished_runs_seconds += time.monotonic() - self.stats.run_started
                 self.stats.run_started = None
         return self.stats
+
+    def after_game(self, result: str) -> bool:
+        """Handle the post-game screen. Returns True if a new game is already running.
+
+        After a win BTD6 only offers Home / Preview / Freeplay, so the next game starts from the menu.
+        The defeat screen has Restart - with a captured 'restart' template the map restarts right away.
+        PL: Obsługa ekranu po grze. Zwraca True, jeśli nowa gra już trwa.
+        Po wygranej BTD6 daje tylko Home / Preview / Freeplay, więc kolejna gra startuje z menu.
+        Ekran przegranej ma Restart - z wyciętym szablonem 'restart' mapa startuje od razu od nowa.
+        """
+        if result == "defeat" and "after_defeat" not in self.strategy and self.templates.exists("restart"):
+            with self.input.session():
+                restart = self.wait_for_template("restart", 5)
+                if restart:
+                    self.click(restart)
+                    log.info("Restarting the map after the defeat.")
+                    return True
+            log.warning("'restart' not found - going back through the menu.")
+        self.run_sequence(self.post_game_sequence(result))
+        return False
 
     def post_game_sequence(self, result: str) -> list[dict[str, Any]]:
         key = {"victory": "after_victory", "defeat": "after_defeat"}.get(result, "recovery")
@@ -147,13 +164,13 @@ class Bot:
             frame = self.grab_gray()
             if frame is None:
                 continue
-            if time.monotonic() >= end_after:
-                if self.templates.find("victory", frame):
-                    log.info("Victory detected %.0f s after the rounds started.", time.monotonic() - started)
-                    return "victory"
-                if self.templates.find("defeat", frame):
-                    log.info("Defeat detected %.0f s after the rounds started.", time.monotonic() - started)
-                    return "defeat"
+            # A defeat can happen any time, so it is checked from the start. / PL: Przegrana może być w każdej chwili.
+            if self.templates.find("defeat", frame):
+                log.info("Defeat detected %.0f s after the rounds started.", time.monotonic() - started)
+                return "defeat"
+            if time.monotonic() >= end_after and self.templates.find("victory", frame):
+                log.info("Victory detected %.0f s after the rounds started.", time.monotonic() - started)
+                return "victory"
             self._close_popups(frame, dismiss)
         return "timeout"
 

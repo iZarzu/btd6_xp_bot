@@ -31,6 +31,7 @@ from . import __version__
 from .app import STRATEGIES_DIR, build_runtime, load_user_settings, load_yaml, save_user_settings, start_hotkeys
 from .control import Control
 from .i18n import LANGUAGES, default_language, translate
+from .recorder import LiveRecorder, PositionRecorder, apply_positions
 
 log = logging.getLogger("btd6bot")
 
@@ -200,6 +201,8 @@ class App(tk.Tk):
         self.bot_thread: threading.Thread | None = None
         self.control: Control | None = None
         self.strategy_path: Path | None = None
+        self.live_recorder: LiveRecorder | None = None
+        self._record_dirty = False
 
         self._build_top()
         self.notebook = ttk.Notebook(self)
@@ -222,6 +225,11 @@ class App(tk.Tk):
         self._texts.append((widget, key, option))
         return widget
 
+    def retext(self, widget: tk.Widget, key: str, option: str = "text") -> None:
+        """Switch a registered widget to another translation key. / PL: Zmień klucz tłumaczenia widżetu."""
+        self._texts = [(w, k, o) if w is not widget else (w, key, o) for w, k, o in self._texts]
+        widget.configure(**{option: self.t(key)})
+
     def add_tab(self, key: str) -> ttk.Frame:
         tab = ttk.Frame(self.notebook)
         self.notebook.add(tab, text=self.t(key))
@@ -239,6 +247,7 @@ class App(tk.Tk):
         self.refresh_templates()
         self._show_window_info()
         self._show_stats()
+        self._show_record_status()
 
     # ------------------------------------------------------------------ top bar / górny pasek
     def _build_top(self) -> None:
@@ -460,6 +469,17 @@ class App(tk.Tk):
         self.tw(ttk.Button(row, command=self.save_strategy), "save").pack(side="left", padx=4)
         self.tw(ttk.Button(row, command=self.save_strategy_as), "save_as").pack(side="left")
 
+        box = self.tw(ttk.LabelFrame(tab), "record_box")
+        box.pack(fill="x", padx=6, pady=(0, 6))
+        self.tw(ttk.Label(box, wraplength=940, justify="left"), "record_help").pack(anchor="w", padx=6, pady=(4, 2))
+        row = ttk.Frame(box)
+        row.pack(fill="x", padx=6, pady=(0, 6))
+        self.btn_record = self.tw(ttk.Button(row, command=self.toggle_recording), "record_start")
+        self.btn_record.pack(side="left")
+        self.tw(ttk.Button(row, command=self.undo_recording), "record_undo").pack(side="left", padx=4)
+        self.lbl_record = ttk.Label(row, text="")
+        self.lbl_record.pack(side="left", padx=8)
+
         row = self.tw(ttk.LabelFrame(tab), "add_tower_box")
         row.pack(fill="x", padx=6)
         towers = sorted((self.cfg.get("hotkeys", {}).get("towers") or {}).keys())
@@ -482,6 +502,68 @@ class App(tk.Tk):
             preferred = "infernal_deflation.yaml" if "infernal_deflation.yaml" in files else files[0]
             self.var_strategy.set(preferred)
             self.load_strategy()
+
+    # ------------------------------------------------------------------ recording / nagrywanie
+    def toggle_recording(self) -> None:
+        if self.live_recorder:
+            self.stop_recording()
+            return
+        try:
+            rt = build_runtime(self.current_cfg(), with_input=False)
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        recorder = PositionRecorder(self.cfg.get("hotkeys", {}).get("towers") or {})
+        try:
+            self.live_recorder = LiveRecorder(recorder, rt.game, self._mark_record_dirty)
+            self.live_recorder.start()
+        except Exception as exc:  # pynput missing / no display / PL: brak pynput
+            self.live_recorder = None
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        self.retext(self.btn_record, "record_stop")
+        self._show_record_status()
+        log.info(self.t("record_started"))
+
+    def stop_recording(self) -> None:
+        live, self.live_recorder = self.live_recorder, None
+        if live is None:
+            return
+        live.stop()
+        self.retext(self.btn_record, "record_start")
+        self.lbl_record.configure(text="")
+        placements = live.recorder.placements
+        if not placements:
+            return
+        text, updated, unmatched = apply_positions(self.strategy_text.get("1.0", "end-1c"), placements)
+        self.strategy_text.delete("1.0", "end")
+        self.strategy_text.insert("1.0", text)
+        log.info(self.t("record_applied", n=updated))
+        if unmatched:
+            messagebox.showwarning(APP_TITLE, self.t("record_unmatched", towers=", ".join(unmatched)))
+
+    def undo_recording(self) -> None:
+        if self.live_recorder:
+            with self.live_recorder.lock:
+                self.live_recorder.recorder.undo()
+            self._show_record_status()
+
+    def _mark_record_dirty(self) -> None:
+        # Called from the pynput thread - tkinter must only be touched from the GUI thread.
+        # PL: Wołane z wątku pynput - tkintera wolno dotykać tylko z wątku GUI.
+        self._record_dirty = True
+
+    def _show_record_status(self) -> None:
+        if not self.live_recorder:
+            return
+        rec = self.live_recorder.recorder
+        with self.live_recorder.lock:
+            last = "{} {}".format(rec.placements[-1][0], list(rec.placements[-1][1])) if rec.placements else "-"
+            count, waiting = len(rec.placements), rec.pending
+        text = self.t("record_status", n=count, last=last)
+        if waiting:
+            text += "  " + self.t("record_pending", tower=waiting)
+        self.lbl_record.configure(text=text)
 
     def load_strategy(self) -> None:
         self.strategy_path = STRATEGIES_DIR / self.var_strategy.get()
@@ -615,6 +697,9 @@ class App(tk.Tk):
             self.lbl_stats.configure(text=self.t("stats", **self._stats))
 
     def _poll_log(self) -> None:
+        if self._record_dirty:
+            self._record_dirty = False
+            self._show_record_status()
         while not self.log_queue.empty():
             item = self.log_queue.get_nowait()
             if isinstance(item, tuple):
@@ -650,6 +735,8 @@ class App(tk.Tk):
         log.info(self.t("config_saved"))
 
     def on_close(self) -> None:
+        if self.live_recorder:
+            self.live_recorder.stop()
         if self.control:
             self.control.stop()
         self.destroy()

@@ -75,8 +75,31 @@ STRINGS: dict[str, dict[str, str]] = {
     "file": {"en": "File:", "pl": "Plik:"},
     "save": {"en": "Save", "pl": "Zapisz"},
     "save_as": {"en": "Save as…", "pl": "Zapisz jako…"},
-    "add_tower_box": {"en": "Add a tower at the cursor position in the editor",
-                      "pl": "Dodaj wieżę w miejscu kursora w edytorze"},
+    "record_box": {"en": "Record tower positions by placing them in the game (recommended)",
+                   "pl": "Nagraj pozycje wież, stawiając je w grze (zalecane)"},
+    "record_help": {
+        "en": "Start the map in the game and click Record. In the game press the tower hotkey (e.g. K village, "
+              "Z sniper, F alchemist) and click where it should stand - the exact click is saved. Esc cancels. "
+              "Then click Stop: only the positions (at: [...]) of the matching towers in the editor are updated, "
+              "upgrades stay unchanged.",
+        "pl": "Wejdź w grze na mapę i kliknij Nagrywaj. W grze wciśnij skrót wieży (np. K wioska, Z snajper, "
+              "F alchemik) i kliknij, gdzie ma stać - zapisuje się dokładne miejsce kliknięcia. Esc anuluje. "
+              "Potem kliknij Stop: w edytorze zmienią się tylko pozycje (at: [...]) pasujących wież, "
+              "ulepszenia zostają bez zmian."},
+    "record_start": {"en": "⏺ Record", "pl": "⏺ Nagrywaj"},
+    "record_stop": {"en": "⏹ Stop recording", "pl": "⏹ Zatrzymaj nagrywanie"},
+    "record_undo": {"en": "↶ Undo last", "pl": "↶ Cofnij ostatnią"},
+    "record_status": {"en": "Recorded towers: {n} | last: {last}", "pl": "Nagrane wieże: {n} | ostatnia: {last}"},
+    "record_pending": {"en": "(placing: {tower} - click on the map)",
+                       "pl": "(stawiasz: {tower} - kliknij na mapie)"},
+    "record_started": {"en": "Recording started - place the towers in the game.",
+                       "pl": "Nagrywanie rozpoczęte - postaw wieże w grze."},
+    "record_applied": {"en": "Updated positions of {n} towers - check them and click Save.",
+                       "pl": "Zaktualizowano pozycje {n} wież - sprawdź i kliknij Zapisz."},
+    "record_unmatched": {"en": "These recorded towers have no 'place' line in the strategy and were skipped: {towers}",
+                         "pl": "Te nagrane wieże nie mają linii 'place' w strategii i zostały pominięte: {towers}"},
+    "add_tower_box": {"en": "Or add a tower manually on a screenshot (at the cursor position in the editor)",
+                      "pl": "Albo dodaj wieżę ręcznie na zrzucie (w miejscu kursora w edytorze)"},
     "name": {"en": "name:", "pl": "nazwa:"},
     "upgrades": {"en": "upgrades:", "pl": "ulepszenia:"},
     "pick_add": {"en": "Pick position & add", "pl": "Wskaż miejsce i dodaj"},

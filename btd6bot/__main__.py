@@ -10,6 +10,7 @@ import argparse
 import logging
 from pathlib import Path
 
+from . import __version__
 from .app import CONFIG_PATH, build_runtime, load_yaml, start_hotkeys
 from .control import Control
 from .window import enable_dpi_awareness
@@ -55,6 +56,7 @@ def cmd_gui(args, cfg: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(prog="btd6bot", description="BTD6 XP farming bot")
     parser.add_argument("--config", default=str(CONFIG_PATH))
+    parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     sub = parser.add_subparsers(dest="cmd")
     run = sub.add_parser("run", help="farm in a loop / farmienie w pętli")
     run.add_argument("strategy")

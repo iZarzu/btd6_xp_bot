@@ -4,6 +4,7 @@ PL: Wspólna inicjalizacja używana przez CLI i GUI.
 """
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from pathlib import Path
@@ -20,6 +21,9 @@ from .window import GameWindow, locate_game
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG_PATH = ROOT / "config.yaml"
 STRATEGIES_DIR = ROOT / "strategies"
+# Per-user GUI preferences (language...), not tracked by git.
+# PL: Preferencje użytkownika (język...), nieśledzone przez gita.
+USER_SETTINGS_PATH = ROOT / "user_settings.json"
 
 log = logging.getLogger("btd6bot")
 
@@ -27,6 +31,19 @@ log = logging.getLogger("btd6bot")
 def load_yaml(path: Path) -> dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}
+
+
+def load_user_settings() -> dict[str, Any]:
+    try:
+        return json.loads(USER_SETTINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def save_user_settings(**values: Any) -> None:
+    settings = load_user_settings()
+    settings.update(values)
+    USER_SETTINGS_PATH.write_text(json.dumps(settings, indent=2), encoding="utf-8")
 
 
 @dataclass

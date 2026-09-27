@@ -6,6 +6,9 @@ Everything that depends on the screen size (templates, tower positions) is set u
 clicking on a screenshot of YOUR game, and stored in a resolution-independent way.
 PL: Wszystko, co zależy od rozdzielczości (szablony, pozycje wież), ustawiasz klikając
 na zrzucie ekranu TWOJEJ gry, a zapisywane jest niezależnie od rozdzielczości.
+
+All visible texts come from i18n.py; the language is picked in the top-right corner.
+PL: Wszystkie widoczne teksty pochodzą z i18n.py; język wybiera się w prawym górnym rogu.
 """
 from __future__ import annotations
 
@@ -24,31 +27,23 @@ import cv2
 import numpy as np
 import yaml
 
-from .app import STRATEGIES_DIR, build_runtime, load_yaml, start_hotkeys
+from . import __version__
+from .app import STRATEGIES_DIR, build_runtime, load_user_settings, load_yaml, save_user_settings, start_hotkeys
 from .control import Control
+from .i18n import LANGUAGES, default_language, translate
 
 log = logging.getLogger("btd6bot")
 
-# (name, required, English description, Polish description)
+# (name, required) - descriptions are in i18n.py as "tpl_<name>". / PL: opisy są w i18n.py.
 TEMPLATES = [
-    ("victory", True, "'Victory' text on the win screen", "napis 'Victory' po wygranej"),
-    ("defeat", True, "text on the defeat screen", "napis na ekranie przegranej"),
-    ("next", True, "'Next' button on the win screen", "przycisk 'Next' po wygranej"),
-    ("home", True, "home button after a game", "przycisk domku po grze"),
-    ("play", True, "'Play' button in the main menu", "'Play' w menu głównym"),
-    ("expert", False, "'Expert' map category tab", "zakładka map 'Expert'"),
-    ("map", True, "map thumbnail (e.g. Infernal)", "miniatura mapy (np. Infernal)"),
-    ("easy", True, "'Easy' difficulty button", "przycisk trudności 'Easy'"),
-    ("deflation", True, "'Deflation' mode button", "przycisk trybu 'Deflation'"),
-    ("ok", False, "'OK' in the mode rules popup", "'OK' w okienku zasad trybu"),
-    ("ingame", False, "static in-game HUD element (speeds up loading)", "stały element HUD w grze"),
-    ("levelup", False, "level-up popup", "okienko awansu poziomu"),
-    ("restart", False, "'Restart' button (faster loop)", "przycisk 'Restart' (szybsza pętla)"),
-    ("confirm", False, "restart confirmation button", "potwierdzenie restartu"),
+    ("victory", True), ("defeat", True), ("next", True), ("home", True), ("play", True),
+    ("expert", False), ("map", True), ("easy", True), ("deflation", True), ("ok", False),
+    ("ingame", False), ("levelup", False), ("restart", False), ("confirm", False),
 ]
 
 CAPTURE_MODES = ["auto", "window", "screen"]
 INPUT_MODES = ["burst", "foreground", "background"]
+APP_TITLE = "BTD6 XP Bot"
 
 
 class QueueLogHandler(logging.Handler):
@@ -69,7 +64,7 @@ def set_yaml_scalar(text: str, key: str, value: str) -> str:
     pattern = re.compile(rf"^({re.escape(key)}:\s*)([^#\n]*?)(\s*#.*)?$", re.M)
     if pattern.search(text):
         return pattern.sub(lambda m: f"{m.group(1)}{value}{m.group(3) or ''}", text, count=1)
-    return f"{key}: {value}\n" + text
+    return text.rstrip("\n") + f"\n{key}: {value}\n"
 
 
 def frame_to_photo(frame_bgr: np.ndarray, max_w: int, max_h: int) -> tuple[tk.PhotoImage, float]:
@@ -92,24 +87,22 @@ class ScreenshotPicker(tk.Toplevel):
 
     def __init__(self, master: "App", mode: str, on_done: Callable, markers: list[tuple[float, float, str]] = ()):
         super().__init__(master)
+        t = master.t
         self.master_app = master
         self.mode = mode
         self.on_done = on_done
         self.markers = markers
-        self.title("Click a point / Kliknij punkt" if mode == "point" else "Drag a rectangle / Zaznacz prostokąt")
+        self.title(t("picker_point_title" if mode == "point" else "picker_rect_title"))
         self.transient(master)
-        info = ("Click the spot. Circles = towers already in the strategy. / "
-                "Kliknij miejsce. Kółka = wieże już dodane w strategii." if mode == "point" else
-                "Drag a SMALL, distinctive fragment (text/icon), then Save. / "
-                "Zaznacz MAŁY, charakterystyczny fragment (napis/ikonę), potem Zapisz.")
         top = ttk.Frame(self)
         top.pack(fill="x")
-        ttk.Label(top, text=info).pack(side="left", padx=6, pady=4)
+        ttk.Label(top, text=t("picker_point_help" if mode == "point" else "picker_rect_help")).pack(
+            side="left", padx=6, pady=4)
         self.coords = ttk.Label(top, text="")
         self.coords.pack(side="left", padx=12)
-        ttk.Button(top, text="Refresh / Odśwież", command=self.refresh).pack(side="right", padx=4)
+        ttk.Button(top, text=t("refresh"), command=self.refresh).pack(side="right", padx=4)
         if mode == "rect":
-            ttk.Button(top, text="Save / Zapisz", command=self.save_rect).pack(side="right", padx=4)
+            ttk.Button(top, text=t("save"), command=self.save_rect).pack(side="right", padx=4)
         self.canvas = tk.Canvas(self, highlightthickness=0, cursor="crosshair")
         self.canvas.pack()
         self.canvas.bind("<Motion>", self.on_motion)
@@ -170,14 +163,15 @@ class ScreenshotPicker(tk.Toplevel):
                           max(x0, event.x) / self.disp_w, max(y0, event.y) / self.disp_h)
 
     def save_rect(self) -> None:
+        t = self.master_app.t
         if not self.selection or self.frame is None:
-            messagebox.showwarning("BTD6 bot", "Drag a rectangle first. / Najpierw zaznacz obszar.", parent=self)
+            messagebox.showwarning(APP_TITLE, t("need_rect"), parent=self)
             return
         h, w = self.frame.shape[:2]
         x0, y0, x1, y1 = self.selection
         crop = self.frame[int(y0 * h):int(y1 * h), int(x0 * w):int(x1 * w)]
         if crop.shape[0] < 6 or crop.shape[1] < 6:
-            messagebox.showwarning("BTD6 bot", "Selection too small. / Za mały obszar.", parent=self)
+            messagebox.showwarning(APP_TITLE, t("too_small"), parent=self)
             return
         self.on_done(np.ascontiguousarray(crop), w, h)
         self.destroy()
@@ -186,32 +180,84 @@ class ScreenshotPicker(tk.Toplevel):
 class App(tk.Tk):
     def __init__(self, config_path: Path):
         super().__init__()
-        self.title("BTD6 XP Bot")
-        self.geometry("980x720")
+        self.title(f"{APP_TITLE} v{__version__}")
+        self.geometry("1000x740")
         self.config_path = config_path
         self.cfg = load_yaml(config_path)
+        self.lang = load_user_settings().get("language") or default_language()
+        if self.lang not in LANGUAGES:
+            self.lang = "en"
+        # Widgets whose text is re-translated on language change: (widget, key, option).
+        # PL: Widżety tłumaczone ponownie przy zmianie języka: (widżet, klucz, opcja).
+        self._texts: list[tuple[tk.Widget, str, str]] = []
+        self._tabs: list[tuple[ttk.Frame, str]] = []
+        self._window_info: tuple | None = None
+        self._visible: dict[str, bool] = {}
+        self._stats: dict | None = None
         self.log_queue: queue.Queue = queue.Queue()
-        handler = QueueLogHandler(self.log_queue)
-        log.addHandler(handler)
+        log.addHandler(QueueLogHandler(self.log_queue))
         log.setLevel(logging.INFO)
         self.bot_thread: threading.Thread | None = None
         self.control: Control | None = None
         self.strategy_path: Path | None = None
 
-        self._build_game_frame()
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, padx=8, pady=(0, 8))
-        self._build_templates_tab(notebook)
-        self._build_strategy_tab(notebook)
-        self._build_run_tab(notebook)
-        self._build_config_tab(notebook)
+        self._build_top()
+        self.notebook = ttk.Notebook(self)
+        self._build_status_bar()  # packed before the notebook so it stays visible / PL: zawsze widoczny
+        self.notebook.pack(fill="both", expand=True, padx=8, pady=(0, 4))
+        self._build_templates_tab()
+        self._build_strategy_tab()
+        self._build_run_tab()
+        self._build_config_tab()
         self.after(200, self._poll_log)
         self.protocol("WM_DELETE_WINDOW", self.on_close)
 
-    # ------------------------------------------------------------------ game settings / ustawienia gry
-    def _build_game_frame(self) -> None:
-        box = ttk.LabelFrame(self, text="Game / Gra")
-        box.pack(fill="x", padx=8, pady=8)
+    # ------------------------------------------------------------------ i18n helpers / tłumaczenia
+    def t(self, key: str, **fmt) -> str:
+        return translate(self.lang, key, **fmt)
+
+    def tw(self, widget: tk.Widget, key: str, option: str = "text") -> tk.Widget:
+        """Set a translated text on a widget and remember it. / PL: Ustaw przetłumaczony tekst i zapamiętaj."""
+        widget.configure(**{option: self.t(key)})
+        self._texts.append((widget, key, option))
+        return widget
+
+    def add_tab(self, key: str) -> ttk.Frame:
+        tab = ttk.Frame(self.notebook)
+        self.notebook.add(tab, text=self.t(key))
+        self._tabs.append((tab, key))
+        return tab
+
+    def set_language(self, lang: str) -> None:
+        self.lang = lang
+        save_user_settings(language=lang)
+        for widget, key, option in self._texts:
+            widget.configure(**{option: self.t(key)})
+        for tab, key in self._tabs:
+            self.notebook.tab(tab, text=self.t(key))
+        self._set_tree_headings()
+        self.refresh_templates()
+        self._show_window_info()
+        self._show_stats()
+
+    # ------------------------------------------------------------------ top bar / górny pasek
+    def _build_top(self) -> None:
+        top = ttk.Frame(self)
+        top.pack(fill="x", padx=8, pady=8)
+
+        # Language picker in the top-right corner. / PL: Wybór języka w prawym górnym rogu.
+        lang_box = ttk.Frame(top)
+        lang_box.pack(side="right", anchor="ne", padx=(8, 0))
+        self.tw(ttk.Label(lang_box), "language").pack(side="left")
+        self.var_lang = tk.StringVar(value=LANGUAGES[self.lang])
+        combo = ttk.Combobox(lang_box, textvariable=self.var_lang, values=list(LANGUAGES.values()),
+                             width=9, state="readonly")
+        combo.pack(side="left", padx=4)
+        by_name = {name: code for code, name in LANGUAGES.items()}
+        combo.bind("<<ComboboxSelected>>", lambda _: self.set_language(by_name[self.var_lang.get()]))
+
+        box = self.tw(ttk.LabelFrame(top), "game")
+        box.pack(side="left", fill="x", expand=True)
         self.var_title = tk.StringVar(value=self.cfg.get("window_title", "BloonsTD6"))
         self.var_capture = tk.StringVar(value=self.cfg.get("capture_mode", "auto"))
         self.var_input = tk.StringVar(value=self.cfg.get("input_mode", "burst"))
@@ -219,25 +265,30 @@ class App(tk.Tk):
 
         row = ttk.Frame(box)
         row.pack(fill="x", padx=6, pady=4)
-        ttk.Label(row, text="Window title / Tytuł okna:").pack(side="left")
-        ttk.Entry(row, textvariable=self.var_title, width=16).pack(side="left", padx=4)
-        ttk.Label(row, text="Capture / Obraz:").pack(side="left", padx=(12, 0))
+        self.tw(ttk.Label(row), "window_title").pack(side="left")
+        ttk.Entry(row, textvariable=self.var_title, width=14).pack(side="left", padx=4)
+        self.tw(ttk.Label(row), "capture").pack(side="left", padx=(10, 0))
         ttk.Combobox(row, textvariable=self.var_capture, values=CAPTURE_MODES, width=8,
                      state="readonly").pack(side="left", padx=4)
-        ttk.Label(row, text="Input / Sterowanie:").pack(side="left", padx=(12, 0))
+        self.tw(ttk.Label(row), "input").pack(side="left", padx=(10, 0))
         ttk.Combobox(row, textvariable=self.var_input, values=INPUT_MODES, width=11,
                      state="readonly").pack(side="left", padx=4)
-        ttk.Label(row, text="Match / Dopasowanie:").pack(side="left", padx=(12, 0))
+        self.tw(ttk.Label(row), "match").pack(side="left", padx=(10, 0))
         ttk.Spinbox(row, textvariable=self.var_threshold, from_=0.5, to=0.99, increment=0.01,
                     width=5).pack(side="left", padx=4)
 
         row = ttk.Frame(box)
         row.pack(fill="x", padx=6, pady=(0, 6))
-        ttk.Button(row, text="Detect window / Wykryj okno", command=self.detect_window).pack(side="left")
-        ttk.Button(row, text="Test input / Test sterowania", command=self.test_input).pack(side="left", padx=4)
-        ttk.Button(row, text="Save settings / Zapisz ustawienia", command=self.save_game_settings).pack(side="left")
+        self.tw(ttk.Button(row, command=self.detect_window), "detect").pack(side="left")
+        self.tw(ttk.Button(row, command=self.test_input), "test_input").pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.save_game_settings), "save_settings").pack(side="left")
         self.lbl_window = ttk.Label(row, text="")
         self.lbl_window.pack(side="left", padx=12)
+
+    def _build_status_bar(self) -> None:
+        bar = ttk.Frame(self)
+        bar.pack(side="bottom", fill="x", padx=8, pady=(0, 4))
+        ttk.Label(bar, text=f"v{__version__}", foreground="#808080").pack(side="right")
 
     def current_cfg(self) -> dict:
         cfg = dict(self.cfg)
@@ -249,11 +300,17 @@ class App(tk.Tk):
         try:
             rt = build_runtime(self.current_cfg(), with_input=False)
         except Exception as exc:
-            messagebox.showerror("BTD6 bot", str(exc))
+            messagebox.showerror(APP_TITLE, str(exc))
             return
-        r = rt.game.rect
-        where = "window / okno" if rt.game.hwnd else "WHOLE MONITOR (game not found) / CAŁY MONITOR"
-        self.lbl_window.configure(text=f"{where}: {r.width}x{r.height}, capture: {rt.capture.name}")
+        self._window_info = (bool(rt.game.hwnd), rt.game.rect.width, rt.game.rect.height, rt.capture.name)
+        self._show_window_info()
+
+    def _show_window_info(self) -> None:
+        if not self._window_info:
+            return
+        found, w, h, cap = self._window_info
+        self.lbl_window.configure(text=self.t("win_found", w=w, h=h, cap=cap) if found
+                                  else self.t("win_monitor", w=w, h=h))
 
     def save_game_settings(self) -> None:
         text = self.config_path.read_text(encoding="utf-8")
@@ -265,7 +322,7 @@ class App(tk.Tk):
         self.cfg = load_yaml(self.config_path)
         self.config_text.delete("1.0", "end")
         self.config_text.insert("1.0", text)
-        log.info("Settings saved. / Zapisano ustawienia.")
+        log.info(self.t("settings_saved"))
 
     def grab_frame(self) -> np.ndarray | None:
         """Screenshot of the game. With screen capture the GUI hides for a moment.
@@ -285,10 +342,10 @@ class App(tk.Tk):
                 if hide:
                     self.deiconify()
         except Exception as exc:
-            messagebox.showerror("BTD6 bot", f"Capture failed / błąd przechwytywania:\n{exc}")
+            messagebox.showerror(APP_TITLE, self.t("capture_failed", err=exc))
             return None
         if frame is None:
-            messagebox.showerror("BTD6 bot", "No image - is the game minimized? / Brak obrazu - gra zminimalizowana?")
+            messagebox.showerror(APP_TITLE, self.t("no_image"))
         return frame
 
     def test_input(self) -> None:
@@ -302,62 +359,62 @@ class App(tk.Tk):
                 rt = build_runtime(self.current_cfg())
                 with rt.input.session():
                     rt.input.click(pos)
-                log.info("Test click sent at %s via %s. Did the game react? / Czy gra zareagowała?",
-                         pos, rt.input.name)
+                log.info(self.t("test_click_sent", pos=pos, mode=rt.input.name))
             except Exception as exc:
-                messagebox.showerror("BTD6 bot", str(exc))
+                messagebox.showerror(APP_TITLE, str(exc))
 
         ScreenshotPicker(self, "point", send)
 
     # ------------------------------------------------------------------ templates / szablony
-    def _build_templates_tab(self, notebook: ttk.Notebook) -> None:
-        tab = ttk.Frame(notebook)
-        notebook.add(tab, text="1. Templates / Szablony")
-        ttk.Label(tab, wraplength=900, justify="left", text=(
-            "Open the right game screen (e.g. win screen for 'victory'), select a row and click Capture. "
-            "Templates are rescaled automatically for other resolutions.\n"
-            "PL: Otwórz w grze odpowiedni ekran (np. wygranej dla 'victory'), zaznacz wiersz i kliknij Wytnij. "
-            "Szablony są automatycznie skalowane do innych rozdzielczości.")).pack(anchor="w", padx=6, pady=6)
-        cols = ("required", "description", "status", "visible")
-        self.tree = ttk.Treeview(tab, columns=cols, height=15)
-        self.tree.heading("#0", text="Name / Nazwa")
-        self.tree.heading("required", text="Required / Wymagany")
-        self.tree.heading("description", text="What to capture / Co wyciąć")
-        self.tree.heading("status", text="Captured at / Wycięty przy")
-        self.tree.heading("visible", text="Visible now / Widoczny")
+    def _build_templates_tab(self) -> None:
+        tab = self.add_tab("tab_templates")
+        self.tw(ttk.Label(tab, wraplength=940, justify="left"), "templates_help").pack(anchor="w", padx=6, pady=6)
+        self.tree = ttk.Treeview(tab, columns=("required", "description", "status", "visible"), height=15)
         self.tree.column("#0", width=100)
-        self.tree.column("required", width=110, anchor="center")
+        self.tree.column("required", width=90, anchor="center")
         self.tree.column("description", width=420)
         self.tree.column("status", width=130, anchor="center")
         self.tree.column("visible", width=130, anchor="center")
+        self._set_tree_headings()
         self.tree.pack(fill="both", expand=True, padx=6)
         row = ttk.Frame(tab)
         row.pack(fill="x", padx=6, pady=6)
-        ttk.Button(row, text="Capture selected / Wytnij zaznaczony", command=self.capture_template).pack(side="left")
-        ttk.Button(row, text="Capture custom… / Własny…", command=self.capture_custom).pack(side="left", padx=4)
-        ttk.Button(row, text="Delete / Usuń", command=self.delete_template).pack(side="left")
-        ttk.Button(row, text="Test on current screen / Test na obecnym ekranie",
-                   command=self.test_templates).pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.capture_template), "btn_capture").pack(side="left")
+        self.tw(ttk.Button(row, command=self.capture_custom), "btn_capture_custom").pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.delete_template), "btn_delete").pack(side="left")
+        self.tw(ttk.Button(row, command=self.test_templates), "btn_test_templates").pack(side="left", padx=4)
         self.refresh_templates()
+
+    def _set_tree_headings(self) -> None:
+        for column, key in (("#0", "col_name"), ("required", "col_required"), ("description", "col_description"),
+                            ("status", "col_status"), ("visible", "col_visible")):
+            self.tree.heading(column, text=self.t(key))
 
     def library(self):
         return build_runtime(self.current_cfg(), with_input=False).templates
 
-    def refresh_templates(self, visible: dict[str, str] | None = None) -> None:
+    def refresh_templates(self) -> None:
         lib = self.library()
+        selected = self.tree.selection()
         self.tree.delete(*self.tree.get_children())
-        known = {t[0] for t in TEMPLATES}
-        rows = list(TEMPLATES) + [(n, False, "custom", "własny") for n in lib.names() if n not in known]
-        for name, required, en, pl in rows:
-            status = lib.info(name) or ("✓" if lib.exists(name) else "✗ missing / brak")
+        known = {name for name, _ in TEMPLATES}
+        rows = list(TEMPLATES) + [(n, False) for n in lib.names() if n not in known]
+        for name, required in rows:
+            description = self.t(f"tpl_{name}") if name in known else self.t("custom")
+            status = lib.info(name) or ("✓" if lib.exists(name) else self.t("missing"))
+            visible = ""
+            if name in self._visible:
+                visible = self.t("visible_yes") if self._visible[name] else "-"
             self.tree.insert("", "end", iid=name, text=name, values=(
-                "yes / tak" if required else "no / nie", f"{en} / {pl}", status, (visible or {}).get(name, "")))
+                self.t("yes" if required else "no"), description, status, visible))
+        existing = [s for s in selected if self.tree.exists(s)]
+        if existing:
+            self.tree.selection_set(existing)
 
     def _save_template(self, name: str):
         def done(crop, width, height):
             path = self.library().save(name, crop, width, height)
-            log.info("Saved template %s (%dx%d px) from a %dx%d game. / Zapisano szablon.",
-                     path.name, crop.shape[1], crop.shape[0], width, height)
+            log.info(self.t("template_saved", name=path.name, tw=crop.shape[1], th=crop.shape[0], w=width, h=height))
             self.refresh_templates()
 
         return done
@@ -365,12 +422,12 @@ class App(tk.Tk):
     def capture_template(self) -> None:
         sel = self.tree.selection()
         if not sel:
-            messagebox.showinfo("BTD6 bot", "Select a row first. / Najpierw zaznacz wiersz.")
+            messagebox.showinfo(APP_TITLE, self.t("select_row"))
             return
         ScreenshotPicker(self, "rect", self._save_template(sel[0]))
 
     def capture_custom(self) -> None:
-        name = simpledialog.askstring("BTD6 bot", "Template name (a-z, 0-9, _) / Nazwa szablonu:", parent=self)
+        name = simpledialog.askstring(APP_TITLE, self.t("template_name_prompt"), parent=self)
         if name and re.fullmatch(r"[a-z0-9_]+", name):
             ScreenshotPicker(self, "rect", self._save_template(name))
 
@@ -386,25 +443,24 @@ class App(tk.Tk):
         if frame is None:
             return
         lib, gray = self.library(), to_gray(frame)
-        visible = {n: ("✓ YES / TAK" if lib.find(n, gray) else "-") for n in lib.names()}
-        self.refresh_templates(visible)
+        self._visible = {n: bool(lib.find(n, gray)) for n in lib.names()}
+        self.refresh_templates()
 
     # ------------------------------------------------------------------ strategy / strategia
-    def _build_strategy_tab(self, notebook: ttk.Notebook) -> None:
-        tab = ttk.Frame(notebook)
-        notebook.add(tab, text="2. Strategy / Strategia")
+    def _build_strategy_tab(self) -> None:
+        tab = self.add_tab("tab_strategy")
         row = ttk.Frame(tab)
         row.pack(fill="x", padx=6, pady=6)
-        ttk.Label(row, text="File / Plik:").pack(side="left")
+        self.tw(ttk.Label(row), "file").pack(side="left")
         self.var_strategy = tk.StringVar()
         files = sorted(p.name for p in STRATEGIES_DIR.glob("*.yaml"))
         self.cmb_strategy = ttk.Combobox(row, textvariable=self.var_strategy, values=files, width=32, state="readonly")
         self.cmb_strategy.pack(side="left", padx=4)
         self.cmb_strategy.bind("<<ComboboxSelected>>", lambda _: self.load_strategy())
-        ttk.Button(row, text="Save / Zapisz", command=self.save_strategy).pack(side="left", padx=4)
-        ttk.Button(row, text="Save as… / Zapisz jako…", command=self.save_strategy_as).pack(side="left")
+        self.tw(ttk.Button(row, command=self.save_strategy), "save").pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.save_strategy_as), "save_as").pack(side="left")
 
-        row = ttk.LabelFrame(tab, text="Add tower at cursor position in the editor / Dodaj wieżę w miejscu kursora")
+        row = self.tw(ttk.LabelFrame(tab), "add_tower_box")
         row.pack(fill="x", padx=6)
         towers = sorted((self.cfg.get("hotkeys", {}).get("towers") or {}).keys())
         self.var_tower = tk.StringVar(value="sniper")
@@ -412,14 +468,13 @@ class App(tk.Tk):
         self.var_path = [tk.IntVar(value=0) for _ in range(3)]
         ttk.Combobox(row, textvariable=self.var_tower, values=towers, width=10, state="readonly").pack(
             side="left", padx=4, pady=4)
-        ttk.Label(row, text="name / nazwa:").pack(side="left")
+        self.tw(ttk.Label(row), "name").pack(side="left")
         ttk.Entry(row, textvariable=self.var_tname, width=10).pack(side="left", padx=4)
-        ttk.Label(row, text="upgrades / ulepszenia:").pack(side="left")
+        self.tw(ttk.Label(row), "upgrades").pack(side="left")
         for var in self.var_path:
             ttk.Spinbox(row, textvariable=var, from_=0, to=5, width=3).pack(side="left", padx=1)
-        ttk.Button(row, text="Pick position & add / Wskaż miejsce i dodaj", command=self.add_tower).pack(
-            side="left", padx=6)
-        ttk.Button(row, text="Insert point [x, y] / Wstaw punkt", command=self.insert_point).pack(side="left")
+        self.tw(ttk.Button(row, command=self.add_tower), "pick_add").pack(side="left", padx=6)
+        self.tw(ttk.Button(row, command=self.insert_point), "insert_point").pack(side="left")
 
         self.strategy_text = scrolledtext.ScrolledText(tab, font=("Consolas", 10), undo=True)
         self.strategy_text.pack(fill="both", expand=True, padx=6, pady=6)
@@ -438,19 +493,19 @@ class App(tk.Tk):
             data = yaml.safe_load(text) or {}
             steps = data.get("steps")
             if not isinstance(steps, list) or not steps:
-                raise ValueError("'steps' must be a non-empty list / 'steps' musi być niepustą listą")
+                raise ValueError(self.t("err_steps"))
             towers = (self.cfg.get("hotkeys", {}).get("towers") or {})
             names = set()
             for step in steps:
                 if "place" in step:
                     if step["place"]["tower"] not in towers:
-                        raise ValueError(f"Unknown tower / nieznana wieża: {step['place']['tower']}")
+                        raise ValueError(self.t("err_unknown_tower", tower=step["place"]["tower"]))
                     names.add(step["place"].get("name", step["place"]["tower"]))
                 if "upgrade" in step and step["upgrade"]["name"] not in names:
-                    raise ValueError(f"Upgrade before place / ulepszenie przed postawieniem: {step['upgrade']['name']}")
+                    raise ValueError(self.t("err_upgrade_first", name=step["upgrade"]["name"]))
             return data
         except Exception as exc:
-            messagebox.showerror("BTD6 bot", f"Strategy error / błąd strategii:\n{exc}")
+            messagebox.showerror(APP_TITLE, self.t("strategy_error", err=exc))
             return None
 
     def save_strategy(self) -> None:
@@ -459,10 +514,10 @@ class App(tk.Tk):
         text = self.strategy_text.get("1.0", "end-1c")
         if self.validate_strategy(text) is not None:
             self.strategy_path.write_text(text, encoding="utf-8")
-            log.info("Strategy saved: %s / Zapisano strategię.", self.strategy_path.name)
+            log.info(self.t("strategy_saved", name=self.strategy_path.name))
 
     def save_strategy_as(self) -> None:
-        name = simpledialog.askstring("BTD6 bot", "File name / Nazwa pliku (.yaml):", parent=self)
+        name = simpledialog.askstring(APP_TITLE, self.t("file_name_prompt"), parent=self)
         if not name:
             return
         self.strategy_path = STRATEGIES_DIR / (name if name.endswith(".yaml") else name + ".yaml")
@@ -498,18 +553,16 @@ class App(tk.Tk):
                          self.strategy_markers())
 
     # ------------------------------------------------------------------ run / uruchamianie
-    def _build_run_tab(self, notebook: ttk.Notebook) -> None:
-        tab = ttk.Frame(notebook)
-        notebook.add(tab, text="3. Run / Uruchom")
+    def _build_run_tab(self) -> None:
+        tab = self.add_tab("tab_run")
         row = ttk.Frame(tab)
         row.pack(fill="x", padx=6, pady=6)
-        ttk.Label(row, text="Games (0 = endless) / Gier (0 = bez końca):").pack(side="left")
+        self.tw(ttk.Label(row), "games").pack(side="left")
         self.var_games = tk.IntVar(value=0)
         ttk.Spinbox(row, textvariable=self.var_games, from_=0, to=10000, width=6).pack(side="left", padx=4)
-        self.btn_start = ttk.Button(row, text="▶ Start", command=self.start_bot)
-        self.btn_start.pack(side="left", padx=4)
-        ttk.Button(row, text="⏸ Pause / Pauza (F7)", command=self.pause_bot).pack(side="left")
-        ttk.Button(row, text="■ Stop (F8)", command=self.stop_bot).pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.start_bot), "start").pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.pause_bot), "pause").pack(side="left")
+        self.tw(ttk.Button(row, command=self.stop_bot), "stop").pack(side="left", padx=4)
         self.lbl_stats = ttk.Label(tab, text="", font=("Segoe UI", 10, "bold"))
         self.lbl_stats.pack(anchor="w", padx=6)
         self.log_text = scrolledtext.ScrolledText(tab, height=20, state="disabled", font=("Consolas", 9))
@@ -518,15 +571,13 @@ class App(tk.Tk):
     def start_bot(self) -> None:
         if self.bot_thread and self.bot_thread.is_alive():
             return
-        text = self.strategy_text.get("1.0", "end-1c")
-        strategy = self.validate_strategy(text)
+        strategy = self.validate_strategy(self.strategy_text.get("1.0", "end-1c"))
         if strategy is None:
             return
         cfg = self.current_cfg()
-        missing = [n for n, req, *_ in TEMPLATES if req and not self.library().exists(n)]
-        if missing and not messagebox.askyesno(
-                "BTD6 bot", f"Missing required templates / brak wymaganych szablonów:\n{', '.join(missing)}\n\n"
-                            "Start anyway? / Uruchomić mimo to?"):
+        lib = self.library()
+        missing = [name for name, required in TEMPLATES if required and not lib.exists(name)]
+        if missing and not messagebox.askyesno(APP_TITLE, self.t("missing_templates", names=", ".join(missing))):
             return
         self.control = Control()
         start_hotkeys(self.control, cfg.get("stop_key", "f8"), cfg.get("pause_key", "f7"))
@@ -538,27 +589,37 @@ class App(tk.Tk):
     def _bot_main(self, cfg: dict, strategy: dict, control: Control, games: int | None) -> None:
         from .bot import Bot
 
+        def on_stats(s) -> None:
+            # Snapshot, the GUI thread formats it in the current language.
+            # PL: Kopia danych - wątek GUI formatuje ją w bieżącym języku.
+            self.log_queue.put(("stats", {
+                "games": s.games, "wins": s.wins, "losses": s.losses, "timeouts": s.timeouts,
+                "last": s.last_game_seconds / 60, "hours": (time.monotonic() - s.started) / 3600}))
+
         try:
             rt = build_runtime(cfg)
-            bot = Bot(cfg, strategy, rt.game, rt.capture, rt.input, rt.templates, control,
-                      on_stats=lambda s: self.log_queue.put(("stats", s.summary())))
-            bot.run(games)
+            Bot(cfg, strategy, rt.game, rt.capture, rt.input, rt.templates, control, on_stats=on_stats).run(games)
         except Exception as exc:  # show any crash in the log / PL: każdy błąd trafia do logu
-            log.exception("Bot crashed / bot przerwał pracę: %s", exc)
+            log.exception(self.t("bot_crashed", err=exc))
 
     def pause_bot(self) -> None:
         if self.control:
-            log.info("Paused / pauza" if self.control.toggle_pause() else "Resumed / wznowiono")
+            log.info(self.t("paused" if self.control.toggle_pause() else "resumed"))
 
     def stop_bot(self) -> None:
         if self.control:
             self.control.stop()
 
+    def _show_stats(self) -> None:
+        if self._stats:
+            self.lbl_stats.configure(text=self.t("stats", **self._stats))
+
     def _poll_log(self) -> None:
         while not self.log_queue.empty():
             item = self.log_queue.get_nowait()
             if isinstance(item, tuple):
-                self.lbl_stats.configure(text=item[1])
+                self._stats = item[1]
+                self._show_stats()
                 continue
             self.log_text.configure(state="normal")
             self.log_text.insert("end", item + "\n")
@@ -567,14 +628,12 @@ class App(tk.Tk):
         self.after(200, self._poll_log)
 
     # ------------------------------------------------------------------ advanced config / zaawansowane
-    def _build_config_tab(self, notebook: ttk.Notebook) -> None:
-        tab = ttk.Frame(notebook)
-        notebook.add(tab, text="Advanced / Zaawansowane (config.yaml)")
+    def _build_config_tab(self) -> None:
+        tab = self.add_tab("tab_advanced")
         row = ttk.Frame(tab)
         row.pack(fill="x", padx=6, pady=6)
-        ttk.Button(row, text="Save / Zapisz", command=self.save_config_text).pack(side="left")
-        ttk.Label(row, text="Timings, hotkeys, post-game sequences / Czasy, skróty, sekwencje po grze").pack(
-            side="left", padx=8)
+        self.tw(ttk.Button(row, command=self.save_config_text), "save").pack(side="left")
+        self.tw(ttk.Label(row), "advanced_help").pack(side="left", padx=8)
         self.config_text = scrolledtext.ScrolledText(tab, font=("Consolas", 10), undo=True)
         self.config_text.pack(fill="both", expand=True, padx=6, pady=(0, 6))
         self.config_text.insert("1.0", self.config_path.read_text(encoding="utf-8"))
@@ -584,11 +643,11 @@ class App(tk.Tk):
         try:
             yaml.safe_load(text)
         except yaml.YAMLError as exc:
-            messagebox.showerror("BTD6 bot", f"YAML error / błąd YAML:\n{exc}")
+            messagebox.showerror(APP_TITLE, self.t("yaml_error", err=exc))
             return
         self.config_path.write_text(text, encoding="utf-8")
         self.cfg = load_yaml(self.config_path)
-        log.info("config.yaml saved. / Zapisano config.yaml.")
+        log.info(self.t("config_saved"))
 
     def on_close(self) -> None:
         if self.control:

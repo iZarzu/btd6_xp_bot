@@ -54,6 +54,9 @@ In the game: enable **Auto Start**, keep default hotkeys (or edit them in `confi
 
 ### Setup in the GUI
 
+The GUI language (English / Polski) is picked in the top-right corner and remembered;
+the version is shown in the bottom-right corner.
+
 1. **Game** - click *Detect window*; it should show the game size. Choose capture/input mode, *Save settings*.
 2. **Templates** - open the right screen in the game (main menu, map list, win screen...), select a row
    and *Capture selected*, then drag a rectangle around a small, distinctive fragment.
@@ -100,10 +103,16 @@ btd6bot/
   bot.py      - the farming loop and strategy steps
   gui.py      - tkinter configuration window
   app.py      - shared setup, global hotkeys
+  i18n.py     - GUI translations (en / pl)
 config.yaml   - settings, hotkeys, post-game sequences
 strategies/   - strategies (YAML)
 templates/    - your captured template images
 ```
+
+### Versioning
+
+`X.Y.Z` in `btd6bot/__init__.py` - `Z` goes up with every commit, `X`/`Y` for bigger milestones.
+Check it with `python -m btd6bot --version`.
 
 ### Disclaimer
 
@@ -154,6 +163,9 @@ start.bat                  # pierwsze uruchomienie: tworzy .venv, instaluje bibl
 W grze: włącz **Auto Start**, zostaw domyślne skróty (albo popraw je w `config.yaml`).
 
 ### Konfiguracja w GUI
+
+Język GUI (English / Polski) wybierasz w prawym górnym rogu i jest zapamiętywany;
+wersja programu jest w prawym dolnym rogu.
 
 1. **Gra** - kliknij *Wykryj okno*, powinien pokazać się rozmiar gry. Wybierz tryb obrazu/sterowania, *Zapisz ustawienia*.
 2. **Szablony** - otwórz w grze odpowiedni ekran (menu główne, lista map, ekran wygranej...), zaznacz wiersz,

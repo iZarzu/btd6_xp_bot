@@ -24,6 +24,7 @@ skalowane na innych ekranach (Full HD <-> 4K).
 | `ok` | "OK" in the rules popup / „OK” w okienku zasad | no / nie |
 | `ingame` | static HUD element / stały element HUD | no (faster / szybciej) |
 | `levelup` | level-up popup / okienko awansu | no / nie |
+| `mk_point` | "Monkey Knowledge Point" text (no number) / napis bez liczby | no / nie |
 | `restart` | Restart button on the defeat screen / Restart na ekranie przegranej | no / nie |
 
 Tips / Wskazówki: capture a **small, distinctive** fragment (text, icon) without animated background.

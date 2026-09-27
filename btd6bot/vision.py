@@ -98,6 +98,10 @@ class TemplateLibrary:
             th, tw = template.shape[:2]
             if th > fh or tw > fw or th < 4 or tw < 4:
                 continue
+            if template.std() < 2:
+                # A flat (single-colour) template "matches" any flat area - never trust it.
+                # PL: Jednolity szablon „pasuje” do każdego płaskiego obszaru - nie ufamy mu.
+                continue
             result = cv2.matchTemplate(frame_gray, template, cv2.TM_CCOEFF_NORMED)
             _, score, _, loc = cv2.minMaxLoc(result)
             if score > best_score:

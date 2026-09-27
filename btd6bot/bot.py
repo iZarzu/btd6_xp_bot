@@ -16,6 +16,9 @@ from .window import GameWindow
 log = logging.getLogger("btd6bot")
 
 Point = tuple[float, float]
+# Popups closed automatically whenever they show up (plus `dismiss_templates` from config.yaml).
+# PL: Okienka zamykane automatycznie, gdy się pojawią (plus `dismiss_templates` z config.yaml).
+BUILTIN_POPUPS = ("levelup", "mk_point")
 POLL_INTERVAL = 0.15  # seconds between screen checks while waiting / PL: odstęp między sprawdzeniami ekranu
 
 
@@ -158,7 +161,7 @@ class Bot:
     def wait_for_game_end(self) -> str:
         started = getattr(self, "rounds_started", time.monotonic())
         deadline = started + self.timings["max_game_minutes"] * 60
-        dismiss = self.cfg.get("dismiss_templates") or []
+        dismiss = self.popups()
         # A game of a fixed strategy takes about the same time, so the end is looked for only after
         # `end_check_delay`. Popups (e.g. level-up, which pauses the game) are handled the whole time.
         # PL: Gra przy stałej strategii trwa mniej więcej tyle samo, więc końca szukamy dopiero po
@@ -322,7 +325,7 @@ class Bot:
         if not self.templates.exists(name):
             log.warning("Missing template templates/%s.png - skipping.", name)
             return None
-        dismiss = [d for d in (self.cfg.get("dismiss_templates") or []) if d != name]
+        dismiss = [d for d in self.popups() if d != name]
         deadline = time.monotonic() + timeout
         previous = None
         while time.monotonic() < deadline:
@@ -336,6 +339,10 @@ class Bot:
                     self._close_popups(frame, dismiss)
             self.control.sleep(POLL_INTERVAL)
         return None
+
+    def popups(self) -> list[str]:
+        configured = list(self.cfg.get("dismiss_templates") or [])
+        return configured + [p for p in BUILTIN_POPUPS if p not in configured]
 
     def _close_popups(self, frame, names: list[str]) -> bool:
         for popup in names:

@@ -96,6 +96,9 @@ steps:                            # done at the start of each game
 | `key: esc` | press a key (`times`) |
 | `wait: 2` | wait N seconds |
 
+Top-level `end_check_delay: 295` (set in the Monkeys tab) - start looking for the end of the game only
+N seconds after the rounds started; the log shows how long each game took.
+
 ### Project layout
 
 ```
@@ -190,6 +193,8 @@ Format strategii i lista kroków - patrz sekcja angielska powyżej (tabela *Step
 `sell`, `click`, `click_template`, `wait_for`, `key`, `wait`.
 `click_template` z opcją `next_page: arrow_right` szuka mapy na kolejnych stronach listy map
 (klika strzałkę w prawo, dopóki jej nie znajdzie).
+`end_check_delay: 295` (pole w zakładce Małpki) - koniec gry jest sprawdzany dopiero N sekund po starcie
+rund; w logu widać, ile trwała każda gra.
 
 ### Jak farmić najefektywniej
 

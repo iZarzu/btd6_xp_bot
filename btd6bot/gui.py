@@ -473,6 +473,16 @@ class App(tk.Tk):
         self.cmb_new_tower = ttk.Combobox(row, textvariable=self.var_new_tower, width=24, state="readonly")
         self.cmb_new_tower.pack(side="left")
         self.tw(ttk.Button(row, command=self.add_monkey), "add_monkey").pack(side="left", padx=4)
+        row = ttk.Frame(tab)
+        row.pack(fill="x", padx=6, pady=(12, 0))
+        self.tw(ttk.Label(row), "end_check_delay").pack(side="left")
+        self.var_end_delay = tk.IntVar(value=0)
+        spin = ttk.Spinbox(row, textvariable=self.var_end_delay, from_=0, to=3600, increment=5, width=6,
+                           command=self.save_end_delay)
+        spin.pack(side="left", padx=4)
+        spin.bind("<FocusOut>", lambda _: self.save_end_delay())
+        spin.bind("<Return>", lambda _: self.save_end_delay())
+        self.tw(ttk.Label(row, foreground="#808080"), "end_check_hint").pack(side="left", padx=6)
         self.lbl_monkeys_status = ttk.Label(tab, text="", font=("Segoe UI", 10, "bold"))
         self.lbl_monkeys_status.pack(anchor="w", padx=6, pady=6)
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -489,6 +499,7 @@ class App(tk.Tk):
         try:
             data = yaml.safe_load(self.strategy_text.get("1.0", "end-1c")) or {}
             self.monkeys, self._monkeys_other = monkeys_from_steps(data.get("steps"))
+            self.var_end_delay.set(int(data.get("end_check_delay") or 0))
             self.lbl_monkeys_status.configure(text="")
         except (yaml.YAMLError, AttributeError, KeyError, TypeError):
             self.monkeys, self._monkeys_other = [], False
@@ -550,6 +561,26 @@ class App(tk.Tk):
                                               foreground="#248a3d")
         self.render_monkeys()
         return True
+
+    def save_end_delay(self) -> None:
+        """Store `end_check_delay` (seconds) in the strategy. / PL: Zapisz `end_check_delay` w strategii."""
+        try:
+            value = max(0, int(self.var_end_delay.get()))
+        except (tk.TclError, ValueError):
+            return
+        text = self.strategy_text.get("1.0", "end-1c")
+        try:
+            if int((yaml.safe_load(text) or {}).get("end_check_delay") or 0) == value:
+                return
+        except (yaml.YAMLError, AttributeError, TypeError, ValueError):
+            return
+        text = set_yaml_scalar(text, "end_check_delay", str(value))
+        self.strategy_text.delete("1.0", "end")
+        self.strategy_text.insert("1.0", text)
+        if self.strategy_path:
+            self.strategy_path.write_text(text, encoding="utf-8")
+            self.lbl_monkeys_status.configure(text=self.t("monkeys_saved", name=self.strategy_path.name),
+                                              foreground="#248a3d")
 
     def set_tier(self, index: int, path_index: int, tier: int) -> None:
         path = list(self.monkeys[index].path)

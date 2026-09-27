@@ -106,18 +106,28 @@ class Bot:
             self.press(self.hotkeys["play"])
             self.control.sleep(0.4)
             self.press(self.hotkeys["play"])
+        self.rounds_started = time.monotonic()
 
     def wait_for_game_end(self) -> str:
-        deadline = time.monotonic() + self.timings["max_game_minutes"] * 60
+        started = getattr(self, "rounds_started", time.monotonic())
+        deadline = started + self.timings["max_game_minutes"] * 60
         dismiss = self.cfg.get("dismiss_templates") or []
+        # A game of a fixed strategy takes about the same time - no need to look for the end earlier.
+        # PL: Gra przy stałej strategii trwa mniej więcej tyle samo - nie ma sensu szukać końca wcześniej.
+        delay = float(self.strategy.get("end_check_delay", 0) or 0)
+        if delay > 0:
+            log.info("Waiting %d s before checking for the end of the game.", delay)
+            self.control.sleep(max(0.0, started + delay - time.monotonic()))
         while time.monotonic() < deadline:
             self.control.sleep(self.timings["check_interval"])
             frame = self.grab_gray()
             if frame is None:
                 continue
             if self.templates.find("victory", frame):
+                log.info("Victory detected %.0f s after the rounds started.", time.monotonic() - started)
                 return "victory"
             if self.templates.find("defeat", frame):
+                log.info("Defeat detected %.0f s after the rounds started.", time.monotonic() - started)
                 return "defeat"
             for name in dismiss:
                 pos = self.templates.find(name, frame)

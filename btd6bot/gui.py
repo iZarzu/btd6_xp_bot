@@ -580,7 +580,11 @@ class App(tk.Tk):
         PL: Przełącz na grę, wciśnij skrót wieży i czekaj na kliknięcie użytkownika.
         """
         if self.catcher:
-            return
+            # A previous request is still waiting for a click - start over instead of silently ignoring.
+            # PL: Poprzednie ustawianie wciąż czeka na klik - zaczynamy od nowa zamiast po cichu ignorować.
+            self.catcher.stop()
+            self.catcher = None
+            log.info("Set position: previous request cancelled.")
         monkey = self.monkeys[index]
         key = (self.cfg.get("hotkeys", {}).get("towers") or {}).get(monkey.tower)
         if key is None:
@@ -590,6 +594,11 @@ class App(tk.Tk):
             rt = build_runtime(self.current_cfg(), with_input=False)
         except Exception as exc:
             messagebox.showerror(APP_TITLE, str(exc))
+            return
+        log.info("Set position: %s (hotkey '%s'), game window: %s", monkey.name, key,
+                 f"{rt.game.rect.width}x{rt.game.rect.height}" if rt.game.hwnd else "NOT FOUND")
+        if IS_WINDOWS and not rt.game.hwnd:
+            messagebox.showerror(APP_TITLE, self.t("game_not_found"))
             return
         self._placing = index
         self.catcher = ClickCatcher(rt.game, on_click=lambda rel: self._click_events.put(("click", rel)),
@@ -608,10 +617,16 @@ class App(tk.Tk):
             game_input.press(str(key))
         except Exception as exc:  # the user can still press the hotkey by hand / PL: można wcisnąć ręcznie
             log.warning("Could not switch to the game / nie udało się przełączyć na grę: %s", exc)
+            self.lbl_monkeys_status.configure(text=self.t("place_manual_key", key=key), foreground="#d70015")
         # Listen only from now on, so the click on this button is not caught.
         # PL: Słuchamy dopiero od teraz, żeby nie złapać kliknięcia w ten przycisk.
-        self.catcher.start()
         catcher = self.catcher
+        try:
+            catcher.start()
+        except Exception as exc:  # never leave a dead catcher behind / PL: nie zostawiaj martwego nasłuchu
+            self.catcher = None
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
         self.after(60000, lambda: self._placing_timeout(catcher))
 
     def _placing_timeout(self, catcher: ClickCatcher) -> None:

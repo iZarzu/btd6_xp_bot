@@ -383,6 +383,7 @@ class App(tk.Tk):
                 rt = build_runtime(self.current_cfg())
                 with rt.input.session():
                     rt.input.click(pos)
+                rt.input.release()
                 log.info(self.t("test_click_sent", pos=pos, mode=rt.input.name))
             except Exception as exc:
                 messagebox.showerror(APP_TITLE, str(exc))

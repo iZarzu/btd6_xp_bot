@@ -113,6 +113,7 @@ class Bot:
         except StopRequested:
             log.info("Stopped. %s", self.stats.summary())
         finally:
+            self.input.release()
             if self.stats.run_started is not None:
                 self.stats.finished_runs_seconds += time.monotonic() - self.stats.run_started
                 self.stats.run_started = None
@@ -204,6 +205,9 @@ class Bot:
             self.control.sleep(0.4)
             self.press(self.hotkeys["play"])
         self.rounds_started = time.monotonic()
+        # Rounds are running - give the computer back until the game ends.
+        # PL: Rundy lecą - oddajemy komputer do końca gry.
+        self.input.release()
 
     def wait_for_game_end(self) -> str:
         started = getattr(self, "rounds_started", time.monotonic())
@@ -229,7 +233,8 @@ class Bot:
             if time.monotonic() >= end_after and self.templates.find("victory", frame):
                 log.info("Victory detected %.0f s after the rounds started.", time.monotonic() - started)
                 return "victory"
-            self._close_popups(frame, dismiss)
+            if self._close_popups(frame, dismiss):
+                self.input.release()
         return "timeout"
 
     # ------------------------------------------------------------------ steps / kroki

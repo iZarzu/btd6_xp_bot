@@ -69,8 +69,13 @@ class ForegroundInput:
 
     @contextlib.contextmanager
     def session(self):
-        """A group of inputs executed together. / PL: Grupa akcji wykonywanych razem."""
+        """Make sure the game can receive input for the enclosed actions.
+        PL: Zapewnia, że gra może przyjmować wejście w trakcie tych akcji."""
         yield
+
+    def release(self) -> None:
+        """Give the computer back to the user (only burst mode does something).
+        PL: Oddaj komputer użytkownikowi (coś robi tylko tryb burst)."""
 
     def move(self, rel: tuple[float, float]) -> None:
         self._mouse.moveTo(*self.game.rect.to_abs(rel), duration=0.05)
@@ -94,35 +99,41 @@ class BurstInput(ForegroundInput):
         if not IS_WINDOWS or game.hwnd is None:
             raise RuntimeError("Burst input needs Windows and a found game window")
         super().__init__(game, click_delay, key_delay)
-        self._depth = 0
+        self._previous: int | None = None  # window to give back / PL: okno do oddania
+        self._cursor: tuple[int, int] | None = None
+        self._holding = False
 
     @contextlib.contextmanager
     def session(self):
-        # Nested sessions reuse the outer one. / PL: Zagnieżdżone sesje używają zewnętrznej.
-        if self._depth:
-            self._depth += 1
-            try:
-                yield
-            finally:
-                self._depth -= 1
-            return
-        from ctypes import wintypes
+        """Take the game to the front (once) and keep it there until release() is called, so a whole
+        sequence (menu -> map -> towers -> start) runs without switching windows back and forth.
 
-        user32 = ctypes.windll.user32
-        previous = user32.GetForegroundWindow()
-        cursor = wintypes.POINT()
-        user32.GetCursorPos(ctypes.byref(cursor))
-        self._depth = 1
-        try:
+        PL: Wyciąga grę na wierzch (raz) i trzyma ją tam do wywołania release(), więc cała sekwencja
+        (menu -> mapa -> wieże -> start) idzie bez przełączania okien tam i z powrotem.
+        """
+        if not self._holding:
+            from ctypes import wintypes
+
+            user32 = ctypes.windll.user32
+            previous = user32.GetForegroundWindow()
+            self._previous = previous if previous and previous != self.game.hwnd else None
+            cursor = wintypes.POINT()
+            user32.GetCursorPos(ctypes.byref(cursor))
+            self._cursor = (cursor.x, cursor.y)
             _bring_to_front(self.game.hwnd)
             self.game.refresh()
+            self._holding = True
             time.sleep(0.25)
-            yield
-        finally:
-            self._depth = 0
-            if previous and previous != self.game.hwnd:
-                _bring_to_front(previous)
-            user32.SetCursorPos(cursor.x, cursor.y)
+        yield
+
+    def release(self) -> None:
+        if not self._holding:
+            return
+        self._holding = False
+        if self._previous:
+            _bring_to_front(self._previous)
+        if self._cursor:
+            ctypes.windll.user32.SetCursorPos(*self._cursor)
 
 
 class BackgroundInput:
@@ -145,6 +156,9 @@ class BackgroundInput:
         self._post(self.game.hwnd, WM_ACTIVATE, 1, 0)
         self._post(self.game.hwnd, WM_SETFOCUS, 0, 0)
         yield
+
+    def release(self) -> None:
+        pass
 
     def _mouse_lparam(self, rel: tuple[float, float]) -> int:
         x, y = self.game.rect.to_client(rel)

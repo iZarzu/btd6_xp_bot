@@ -24,7 +24,6 @@ skalowane na innych ekranach (Full HD <-> 4K).
 | `ok` | "OK" in the rules popup / „OK” w okienku zasad | no / nie |
 | `ingame` | static HUD element / stały element HUD | no (faster / szybciej) |
 | `levelup` | level-up popup / okienko awansu | no / nie |
-| `restart`, `confirm` | for the faster restart loop / szybsza pętla | no / nie |
 
 Tips / Wskazówki: capture a **small, distinctive** fragment (text, icon) without animated background.
 PL: wycinaj **mały, charakterystyczny** fragment (napis, ikonę), bez animowanego tła.

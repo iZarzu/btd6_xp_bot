@@ -42,7 +42,7 @@ log = logging.getLogger("btd6bot")
 TEMPLATES = [
     ("victory", True), ("defeat", True), ("next", True), ("home", True), ("play", True),
     ("expert", False), ("arrow_right", False), ("map", True), ("easy", True), ("deflation", True), ("ok", False),
-    ("ingame", False), ("levelup", False), ("restart", False), ("confirm", False),
+    ("ingame", False), ("levelup", False),
 ]
 
 CAPTURE_MODES = ["auto", "window", "screen"]

@@ -25,7 +25,7 @@ The bot behaves like a person at the computer - it **does not modify the game or
 ```
 menu -> Play -> Infernal -> Easy -> Deflation -> place towers -> space x2 -> ... -> Victory
   ^                                                                                    |
-  +---------------------------- Next -> Home (or Restart) <----------------------------+
+  +------------------------------------ Next -> Home <-----------------------------------+
 ```
 
 ### Working while the bot plays
@@ -96,7 +96,7 @@ steps:                            # done at the start of each game
 | `key: esc` | press a key (`times`) |
 | `wait: 2` | wait N seconds |
 
-With a captured `restart` template the bot automatically loops **Next -> Restart** after a win (no menu).
+After a win BTD6 only offers Home / Preview / Freeplay, so each game starts again from the menu.
 Optional timings in `config.yaml`: `key_delay` (0.08 s between key presses), `after_click_delay`
 (0.3 s after a menu click - the next step waits for its own button), `page_delay` (0.6 s after the map-list arrow).
 
@@ -197,7 +197,7 @@ Format strategii i lista kroków - patrz sekcja angielska powyżej (tabela *Step
 `sell`, `click`, `click_template`, `wait_for`, `key`, `wait`.
 `click_template` z opcją `next_page: arrow_right` szuka mapy na kolejnych stronach listy map
 (klika strzałkę w prawo, dopóki jej nie znajdzie).
-Z wyciętym szablonem `restart` bot po wygranej sam robi pętlę **Next -> Restart** (bez menu).
+Po wygranej BTD6 daje tylko Home / Preview / Freeplay, więc każda gra zaczyna się od menu.
 Opcjonalne czasy w `config.yaml`: `key_delay`, `after_click_delay`, `page_delay` (opis w sekcji angielskiej).
 `end_check_delay: 295` (pole w zakładce Małpki) - koniec gry jest sprawdzany dopiero N sekund po starcie
 rund; w logu widać, ile trwała każda gra.
@@ -206,7 +206,7 @@ rund; w logu widać, ile trwała każda gra.
 
 - Mapy Expert (np. Infernal) dają +30% XP względem Beginner.
 - Pewność > mnożnik: jedna przegrana kosztuje więcej niż różnica w XP - najpierw przetestuj build ręcznie.
-- Pętla `Next -> Restart` (koniec pliku strategii) jest szybsza niż klikanie przez menu.
+- Wytnij szablon `ingame` - bot zacznie stawiać małpki od razu po załadowaniu mapy.
 
 ### Uwaga
 

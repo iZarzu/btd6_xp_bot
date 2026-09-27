@@ -68,8 +68,6 @@ STRINGS: dict[str, dict[str, str]] = {
     "tpl_ingame": {"en": "static in-game HUD element (speeds up loading)",
                    "pl": "stały element HUD w grze (przyspiesza ładowanie)"},
     "tpl_levelup": {"en": "level-up popup", "pl": "okienko awansu poziomu"},
-    "tpl_restart": {"en": "'Restart' button (faster loop)", "pl": "przycisk 'Restart' (szybsza pętla)"},
-    "tpl_confirm": {"en": "restart confirmation button", "pl": "przycisk potwierdzenia restartu"},
     # --- monkeys tab / zakładka małpek
     "tab_monkeys": {"en": "2. Monkeys", "pl": "2. Małpki"},
     "monkeys_help": {

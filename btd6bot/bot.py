@@ -78,7 +78,10 @@ class Bot:
                 log.info("Result: %s | %s", result, self.stats.summary())
                 if self.on_stats:
                     self.on_stats(self.stats)
-                need_menu = not self.after_game(result)
+                # After a win BTD6 only offers Home / Preview / Freeplay, so every game starts from the menu.
+                # PL: Po wygranej BTD6 daje tylko Home / Preview / Freeplay, więc każda gra startuje z menu.
+                self.run_sequence(self.post_game_sequence(result))
+                need_menu = True
         except StopRequested:
             log.info("Stopped. %s", self.stats.summary())
         return self.stats
@@ -86,31 +89,6 @@ class Bot:
     def post_game_sequence(self, result: str) -> list[dict[str, Any]]:
         key = {"victory": "after_victory", "defeat": "after_defeat"}.get(result, "recovery")
         return self.strategy.get(key, self.cfg.get(key, []))
-
-    def after_game(self, result: str) -> bool:
-        """Handle the post-game screens. Returns True if we are already back in a new game.
-
-        With a captured 'restart' template (and no custom after_victory in the strategy) the bot
-        uses Next -> Restart, which skips the whole menu (Play, map, difficulty, mode).
-        PL: Obsługa ekranów po grze. Zwraca True, jeśli jesteśmy już w nowej grze.
-        Z wyciętym szablonem 'restart' (i bez własnego after_victory w strategii) bot używa
-        Next -> Restart, co pomija całe menu (Play, mapa, trudność, tryb).
-        """
-        if result == "victory" and "after_victory" not in self.strategy and self.templates.exists("restart"):
-            with self.input.session():
-                self.run_step({"click_template": "next"})
-                restart = self.wait_for_template("restart", 5)
-                if restart:
-                    self.click(restart)
-                    self.run_step({"click_template": "confirm", "optional": True, "timeout": 2})
-                    log.info("Restarting the map.")
-                    return True
-                log.warning("'restart' not found - going back through the menu.")
-                self.run_step({"click_template": "home", "optional": True, "timeout": 5})
-            return False
-        self.run_sequence(self.post_game_sequence(result))
-        # After "Restart" we are already back in the game. / PL: Po „Restart” jesteśmy już w grze.
-        return result != "timeout" and bool(self.strategy.get("restart_skips_menu", False))
 
     # ------------------------------------------------------------------ game / gra
     def wait_until_in_game(self) -> None:

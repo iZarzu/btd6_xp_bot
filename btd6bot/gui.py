@@ -852,7 +852,7 @@ class App(tk.Tk):
             self.lbl_stats.configure(text="")
             return
         text = self.t("stats", games=s.games, wins=s.wins, losses=s.losses, timeouts=s.timeouts,
-                      last=format_duration(s.last_game_seconds), running=format_duration(s.running_seconds()))
+                      last=format_duration(s.last_game_seconds), running=int(s.running_seconds() // 60))
         if s.run_started is not None and self.bot is not None:
             total = self._run_target if self._run_target else "∞"
             text += self.t("stats_run", done=self.bot.played, total=total)

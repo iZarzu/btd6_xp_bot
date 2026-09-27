@@ -164,9 +164,9 @@ STRINGS: dict[str, dict[str, str]] = {
     "paused": {"en": "Paused.", "pl": "Pauza."},
     "resumed": {"en": "Resumed.", "pl": "Wznowiono."},
     "stats": {"en": "Games: {games} | wins: {wins} | losses: {losses} | timeouts: {timeouts} | "
-                    "last game: {last} | running: {running}",
+                    "last game: {last} | running: {running} min",
               "pl": "Gry: {games} | wygrane: {wins} | przegrane: {losses} | zawieszenia: {timeouts} | "
-                    "ostatnia gra: {last} | czas pracy: {running}"},
+                    "ostatnia gra: {last} | czas pracy: {running} min"},
     # --- advanced tab / zakładka zaawansowana
     "tab_advanced": {"en": "Advanced (config.yaml)", "pl": "Zaawansowane (config.yaml)"},
     "advanced_help": {"en": "Timings, hotkeys, post-game sequences",

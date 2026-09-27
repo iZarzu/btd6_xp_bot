@@ -19,7 +19,14 @@ Point = tuple[float, float]
 # Popups closed automatically whenever they show up (plus `dismiss_templates` from config.yaml).
 # PL: Okienka zamykane automatycznie, gdy się pojawią (plus `dismiss_templates` z config.yaml).
 BUILTIN_POPUPS = ("levelup", "mk_point")
-POLL_INTERVAL = 0.15  # seconds between screen checks while waiting / PL: odstęp między sprawdzeniami ekranu
+POLL_INTERVAL = 0.15
+END_SCREENS = ("victory", "defeat")
+# Safety stop: this many defeats in a row, each within QUICK_DEFEAT_SECONDS of the start, means the
+# bot is stuck in a loop (e.g. it keeps seeing an old defeat screen), not that the strategy is bad.
+# PL: Bezpiecznik: tyle przegranych z rzędu, każda w QUICK_DEFEAT_SECONDS od startu, oznacza pętlę
+# (np. bot widzi wciąż stary ekran przegranej), a nie słabą strategię.
+QUICK_DEFEAT_LIMIT = 3
+QUICK_DEFEAT_SECONDS = 15  # seconds between screen checks while waiting / PL: odstęp między sprawdzeniami ekranu
 
 
 @dataclass
@@ -72,6 +79,7 @@ class Bot:
         need_menu = not self.strategy.get("start_in_game", False)
         try:
             self.stats.run_started = time.monotonic()
+            quick_defeats = 0
             while max_games is None or self.played < max_games:
                 self.game.refresh()
                 if need_menu:
@@ -81,6 +89,8 @@ class Bot:
                 self.wait_until_in_game()
                 self.play_one_game()
                 result = self.wait_for_game_end()
+                quick = result == "defeat" and time.monotonic() - self.rounds_started < QUICK_DEFEAT_SECONDS
+                quick_defeats = quick_defeats + 1 if quick else 0
                 self.stats.games += 1
                 self.played += 1
                 self.stats.last_game_seconds = time.monotonic() - game_start
@@ -93,6 +103,12 @@ class Bot:
                 log.info("Result: %s | %s", result, self.stats.summary())
                 if self.on_stats:
                     self.on_stats(self.stats)
+                if quick_defeats >= QUICK_DEFEAT_LIMIT:
+                    log.error("%d defeats in a row right after the start - stopping, something is wrong "
+                              "(check the 'defeat' and 'ingame' templates). / %d przegranych z rzędu zaraz po "
+                              "starcie - zatrzymuję bota, coś jest nie tak (sprawdź szablony 'defeat' i 'ingame').",
+                              quick_defeats, quick_defeats)
+                    break
                 need_menu = not self.after_game(result)
         except StopRequested:
             log.info("Stopped. %s", self.stats.summary())
@@ -125,6 +141,8 @@ class Bot:
                 if restart:
                     self.click(restart)
                     log.info("Restarting the map after the defeat.")
+                    if not self.wait_until_gone(("defeat", "restart"), 15):
+                        log.warning("The defeat screen is still visible after Restart.")
                     return True
             log.warning("'restart' not found - going back through the menu.")
         self.run_sequence(self.post_game_sequence(result))
@@ -137,7 +155,7 @@ class Bot:
     # ------------------------------------------------------------------ game / gra
     def wait_until_in_game(self) -> None:
         if self.templates.exists("ingame"):
-            if self.wait_for_template("ingame", self.timings["load_timeout"]):
+            if self._wait_for_map(self.timings["load_timeout"]):
                 log.info("Map loaded.")
             else:
                 log.warning("In-game screen ('ingame') not detected, continuing anyway.")
@@ -146,6 +164,35 @@ class Bot:
                      self.timings["load_delay"])
             self.control.sleep(self.timings["load_delay"])
         self.control.sleep(self.timings.get("after_load_delay", 1.0))
+
+    def _wait_for_map(self, timeout: float) -> bool:
+        """'ingame' visible (twice in a row) and no end screen on top of it. The 'ingame' element (e.g. the
+        heart icon) can also be visible on the victory/defeat screen, which is still fading out after Restart.
+
+        PL: 'ingame' widoczne (dwa razy z rzędu) i żadnego ekranu końca gry. Element 'ingame' (np. serduszko)
+        może być widoczny też na ekranie wygranej/przegranej, który po Restart jeszcze znika.
+        """
+        deadline = time.monotonic() + timeout
+        seen = 0
+        while time.monotonic() < deadline:
+            frame = self.grab_gray()
+            if frame is not None:
+                end_screen = any(self.templates.find(n, frame) for n in END_SCREENS if self.templates.exists(n))
+                seen = seen + 1 if not end_screen and self.templates.find("ingame", frame) else 0
+                if seen >= 2:
+                    return True
+            self.control.sleep(POLL_INTERVAL)
+        return False
+
+    def wait_until_gone(self, names: tuple[str, ...], timeout: float) -> bool:
+        """Wait until none of the templates is on screen. / PL: Czekaj, aż żadnego szablonu nie będzie na ekranie."""
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            frame = self.grab_gray()
+            if frame is not None and not any(self.templates.find(n, frame) for n in names if self.templates.exists(n)):
+                return True
+            self.control.sleep(POLL_INTERVAL)
+        return False
 
     def play_one_game(self) -> None:
         self.placed.clear()
@@ -258,7 +305,12 @@ class Bot:
         self.select(name)
         for key, count in zip(self.hotkeys["upgrades"], (top, middle, bottom)):
             self.press(key, count)
-        self.press(self.hotkeys["deselect"])
+        # No Esc to deselect: if the tower was not selected, Esc opens the pause menu and the next clicks
+        # land in it (this once switched the game's placement setting). The next tower hotkey or the
+        # start key closes the upgrade panel anyway.
+        # PL: Bez Esc do odznaczania: jeśli wieża nie była zaznaczona, Esc otwiera menu pauzy i kolejne
+        # kliknięcia trafiają w nie (raz przełączyło to ustawienie stawiania wież). Skrót następnej wieży
+        # albo klawisz startu i tak zamyka panel ulepszeń.
 
     # ------------------------------------------------------------------ helpers / pomocnicze
     def click(self, pos: Point) -> None:

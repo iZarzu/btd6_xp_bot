@@ -47,6 +47,7 @@ TEMPLATES = [
 ]
 
 CAPTURE_MODES = ["auto", "window", "screen"]
+ON_DEFEAT = ["restart", "menu", "stop"]  # what to do after a defeat / PL: co zrobić po przegranej
 INPUT_MODES = ["burst", "foreground", "background"]
 APP_TITLE = "BTD6 XP Bot"
 
@@ -494,6 +495,14 @@ class App(tk.Tk):
         spin.bind("<FocusOut>", lambda _: self.save_end_delay())
         spin.bind("<Return>", lambda _: self.save_end_delay())
         self.tw(ttk.Label(row, foreground="#808080"), "end_check_hint").pack(side="left", padx=6)
+        row = ttk.Frame(tab)
+        row.pack(fill="x", padx=6, pady=(6, 0))
+        self.tw(ttk.Label(row), "on_defeat").pack(side="left")
+        self.var_on_defeat = tk.StringVar()
+        self.cmb_on_defeat = ttk.Combobox(row, textvariable=self.var_on_defeat, width=22, state="readonly")
+        self.cmb_on_defeat.pack(side="left", padx=4)
+        self.cmb_on_defeat.bind("<<ComboboxSelected>>", lambda _: self.save_on_defeat())
+        self._on_defeat = "restart"
         self.lbl_monkeys_status = ttk.Label(tab, text="", font=("Segoe UI", 10, "bold"))
         self.lbl_monkeys_status.pack(anchor="w", padx=6, pady=6)
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -511,6 +520,7 @@ class App(tk.Tk):
             data = yaml.safe_load(self.strategy_text.get("1.0", "end-1c")) or {}
             self.monkeys, self._monkeys_other = monkeys_from_steps(data.get("steps"))
             self.var_end_delay.set(int(data.get("end_check_delay") or 0))
+            self._on_defeat = data.get("on_defeat") if data.get("on_defeat") in ON_DEFEAT else "restart"
             self.lbl_monkeys_status.configure(text="")
         except (yaml.YAMLError, AttributeError, KeyError, TypeError):
             self.monkeys, self._monkeys_other = [], False
@@ -528,6 +538,8 @@ class App(tk.Tk):
         if self.var_new_tower.get() not in self._new_tower_keys and towers:
             self.var_new_tower.set(self.tower_label(towers[0]))
 
+        self.cmb_on_defeat.configure(values=[self.t(f"on_defeat_{v}") for v in ON_DEFEAT])
+        self.var_on_defeat.set(self.t(f"on_defeat_{self._on_defeat}"))
         f = self.monkeys_frame
         for col, key in enumerate(["col_monkey", "col_top", "col_middle", "col_bottom", "col_position"]):
             ttk.Label(f, text=self.t(key), font=("Segoe UI", 9, "bold")).grid(
@@ -579,13 +591,23 @@ class App(tk.Tk):
             value = max(0, int(self.var_end_delay.get()))
         except (tk.TclError, ValueError):
             return
+        self._save_strategy_value("end_check_delay", value, 0)
+
+    def save_on_defeat(self) -> None:
+        labels = {self.t(f"on_defeat_{v}"): v for v in ON_DEFEAT}
+        self._on_defeat = labels.get(self.var_on_defeat.get(), "restart")
+        self._save_strategy_value("on_defeat", self._on_defeat, "restart")
+
+    def _save_strategy_value(self, key: str, value, default) -> None:
+        """Set a top-level strategy value (editor + file), keeping comments.
+        PL: Ustaw wartość najwyższego poziomu w strategii (edytor + plik), zachowując komentarze."""
         text = self.strategy_text.get("1.0", "end-1c")
         try:
-            if int((yaml.safe_load(text) or {}).get("end_check_delay") or 0) == value:
+            if ((yaml.safe_load(text) or {}).get(key) or default) == value:
                 return
         except (yaml.YAMLError, AttributeError, TypeError, ValueError):
             return
-        text = set_yaml_scalar(text, "end_check_delay", str(value))
+        text = set_yaml_scalar(text, key, str(value))
         self.strategy_text.delete("1.0", "end")
         self.strategy_text.insert("1.0", text)
         if self.strategy_path:

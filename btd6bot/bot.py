@@ -103,12 +103,20 @@ class Bot:
         """Handle the post-game screen. Returns True if a new game is already running.
 
         After a win BTD6 only offers Home / Preview / Freeplay, so the next game starts from the menu.
-        The defeat screen has Restart - with a captured 'restart' template the map restarts right away.
+        After a defeat the strategy's `on_defeat` decides: restart (default, needs the 'restart'
+        template), menu (Home, then the menu again) or stop (stop the bot).
         PL: Obsługa ekranu po grze. Zwraca True, jeśli nowa gra już trwa.
         Po wygranej BTD6 daje tylko Home / Preview / Freeplay, więc kolejna gra startuje z menu.
-        Ekran przegranej ma Restart - z wyciętym szablonem 'restart' mapa startuje od razu od nowa.
+        Po przegranej decyduje `on_defeat` w strategii: restart (domyślnie, wymaga szablonu 'restart'),
+        menu (Home i znowu przez menu) albo stop (zatrzymanie bota).
         """
-        if result == "defeat" and "after_defeat" not in self.strategy and self.templates.exists("restart"):
+        on_defeat = self.strategy.get("on_defeat", "restart")
+        if result == "defeat" and on_defeat == "stop":
+            log.info("Defeat - stopping the bot as set in the strategy (on_defeat: stop).")
+            self.control.stop()
+            return False
+        if (result == "defeat" and on_defeat == "restart" and "after_defeat" not in self.strategy
+                and self.templates.exists("restart")):
             with self.input.session():
                 restart = self.wait_for_template("restart", 5)
                 if restart:

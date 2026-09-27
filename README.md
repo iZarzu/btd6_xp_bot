@@ -97,7 +97,8 @@ steps:                            # done at the start of each game
 | `wait: 2` | wait N seconds |
 
 After a win BTD6 only offers Home / Preview / Freeplay, so each game starts again from the menu. After a defeat
-the bot clicks Restart if the `restart` template is captured (defeats are checked during the whole game).
+the strategy's `on_defeat` decides (Monkeys tab): `restart` (default, needs the `restart` template),
+`menu` or `stop`. Defeats are checked during the whole game.
 Optional timings in `config.yaml`: `key_delay` (0.08 s between key presses), `after_click_delay`
 (0.3 s after a menu click - the next step waits for its own button), `page_delay` (0.6 s after the map-list arrow).
 
@@ -199,7 +200,8 @@ Format strategii i lista kroków - patrz sekcja angielska powyżej (tabela *Step
 `click_template` z opcją `next_page: arrow_right` szuka mapy na kolejnych stronach listy map
 (klika strzałkę w prawo, dopóki jej nie znajdzie).
 Po wygranej BTD6 daje tylko Home / Preview / Freeplay, więc każda gra zaczyna się od menu. Po przegranej
-bot klika Restart, jeśli wycięto szablon `restart` (przegrana jest sprawdzana przez całą grę).
+decyduje `on_defeat` w strategii (zakładka Małpki): `restart` (domyślnie, wymaga szablonu `restart`),
+`menu` albo `stop`. Przegrana jest sprawdzana przez całą grę.
 Opcjonalne czasy w `config.yaml`: `key_delay`, `after_click_delay`, `page_delay` (opis w sekcji angielskiej).
 `end_check_delay: 295` (pole w zakładce Małpki) - koniec gry jest sprawdzany dopiero N sekund po starcie
 rund; w logu widać, ile trwała każda gra.

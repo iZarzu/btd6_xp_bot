@@ -1,0 +1,63 @@
+# Infernal (Expert map) - Deflation - Village 2-0-2, Sniper 0-2-4, Alchemist 4-2-0.
+# Well-known XP farm: ~6 min per game, Expert maps give +30% XP vs Beginner.
+# PL: Znana farma XP: ~6 min na grę, mapy Expert dają +30% XP względem Beginner.
+#
+# Requirements / Wymagania:
+#   - Infernal: Easy and Primary Only beaten (Deflation unlocks after that)
+#     PL: przejście Infernal na Easy i Primary Only (dopiero wtedy odblokowuje się Deflation)
+#   - upgrades unlocked: Village 2-0-2, Sniper 0-2-4, Alchemist 4-2-0
+#     PL: odblokowane ulepszenia: Village 2-0-2, Sniper 0-2-4, Alchemik 4-2-0
+#   - "Auto Start" enabled in game settings / PL: włączony "Auto Start" w ustawieniach gry
+#
+# !!! The positions below are PLACEHOLDERS. Set them in the GUI (Strategy tab ->
+#     "Pick position") on your own screenshot of Infernal, then play one game with --games 1.
+# !!! PL: Pozycje poniżej są PRZYKŁADOWE. Ustaw je w GUI (zakładka Strategia ->
+#     "Wskaż miejsce") na zrzucie Twojej mapy, potem przetestuj jedną grę.
+
+name: infernal_deflation
+
+# Main menu -> map. Deflation is in the EASY difficulty column.
+# PL: Menu główne -> mapa. Deflation jest w kolumnie trudności EASY.
+start_game:
+  - click_template: play
+  - click_template: expert        # Expert map tab (skipped if missing) / zakładka map Expert
+    optional: true
+    timeout: 5
+  - click_template: map           # Infernal thumbnail. If it is on another page add a `click` on the arrow before.
+                                  # PL: miniatura Infernal. Jeśli jest na innej stronie - dodaj wcześniej `click` w strzałkę.
+  - click_template: easy
+  - click_template: deflation
+  - click_template: ok            # mode rules popup / okienko zasad trybu
+    optional: true
+    timeout: 5
+
+# Order matters: the village goes first, its Monkey Commerce (x-x-2) discount makes the rest cheaper.
+# The sniper and alchemist must stand inside the village range, the alchemist next to the sniper.
+# PL: Kolejność ma znaczenie: najpierw wioska - jej zniżka (x-x-2) obniża koszt reszty.
+# Snajper i alchemik muszą stać w zasięgu wioski, alchemik tuż obok snajpera.
+steps:
+  - place: {tower: village, name: village, at: [0.46, 0.50]}
+  - upgrade: {name: village, path: [2, 0, 2]}
+
+  - place: {tower: sniper, name: sniper, at: [0.43, 0.43]}
+  - upgrade: {name: sniper, path: [0, 2, 4]}
+
+  - place: {tower: alchemist, name: alchemist, at: [0.49, 0.43]}
+  - upgrade: {name: alchemist, path: [4, 2, 0]}
+
+# Faster loop without the menus: after a win Next -> Restart (+ confirm).
+# Needs 'restart' and 'confirm' templates - uncomment to use.
+# PL: Szybsza pętla bez menu: po wygranej Next -> Restart (+ potwierdzenie).
+# Wymaga szablonów 'restart' i 'confirm' - odkomentuj, żeby użyć.
+# restart_skips_menu: true
+# after_victory:
+#   - click_template: next
+#   - click_template: restart
+#   - click_template: confirm
+#     optional: true
+#     timeout: 5
+# after_defeat:
+#   - click_template: restart
+#   - click_template: confirm
+#     optional: true
+#     timeout: 5

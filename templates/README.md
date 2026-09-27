@@ -1,29 +1,30 @@
-# Szablony obrazków
+# Templates / Szablony
 
-Tu trafiają małe wycinki ekranu (`.png`), po których bot rozpoznaje, co jest na ekranie.
-Wycinasz je sam, bo zależą od Twojej rozdzielczości i języka gry:
+Small screenshots (`.png`) the bot uses to recognize game screens. Capture them in the GUI
+(**Templates** tab) - they depend on your game language, so they are not shipped with the repo.
+`templates.json` stores the game resolution of each capture, so they are rescaled automatically
+on other screens (Full HD <-> 4K).
 
-```
-python -m btd6bot capture victory
-```
+PL: Małe wycinki ekranu (`.png`), po których bot rozpoznaje ekrany gry. Wycinasz je w GUI
+(zakładka **Szablony**) - zależą od języka gry, dlatego nie ma ich w repo.
+`templates.json` zapamiętuje rozdzielczość gry dla każdego wycinka, więc są automatycznie
+skalowane na innych ekranach (Full HD <-> 4K).
 
-Potem F9 w lewym górnym i F9 w prawym dolnym rogu fragmentu.
+| File / Plik | What to capture / Co wyciąć | Required / Wymagany |
+|---|---|---|
+| `victory` | "Victory" text / napis „Victory” | yes / tak |
+| `defeat` | defeat screen text / napis przegranej | yes / tak |
+| `next` | "Next" button on the win screen / przycisk „Next” | yes / tak |
+| `home` | home button after a game / przycisk domku | yes / tak |
+| `play` | "Play" in the main menu / „Play” w menu | yes / tak |
+| `expert` | Expert map tab / zakładka map Expert | no / nie |
+| `map` | Infernal thumbnail / miniatura Infernal | yes / tak |
+| `easy` | Easy difficulty / trudność Easy | yes / tak |
+| `deflation` | Deflation mode / tryb Deflation | yes / tak |
+| `ok` | "OK" in the rules popup / „OK” w okienku zasad | no / nie |
+| `ingame` | static HUD element / stały element HUD | no (faster / szybciej) |
+| `levelup` | level-up popup / okienko awansu | no / nie |
+| `restart`, `confirm` | for the faster restart loop / szybsza pętla | no / nie |
 
-| Plik            | Co wyciąć                                                   | Wymagany |
-|-----------------|-------------------------------------------------------------|----------|
-| `victory.png`   | napis „Victory” na ekranie wygranej                         | tak      |
-| `defeat.png`    | napis/ekran przegranej                                      | tak      |
-| `next.png`      | przycisk „Next” na ekranie wygranej                         | tak      |
-| `home.png`      | przycisk domku (powrót do menu) po grze                     | tak      |
-| `play.png`      | przycisk „Play” w menu głównym                              | tak      |
-| `map.png`       | miniatura wybranej mapy na liście map                       | tak      |
-| `hard.png`      | przycisk trudności (np. Hard)                               | tak      |
-| `deflation.png` | przycisk trybu Deflation                                    | tak      |
-| `ok.png`        | „OK” w okienku z zasadami trybu                             | nie      |
-| `ingame.png`    | stały element interfejsu w grze (np. ikonka pieniędzy)       | nie, ale przyspiesza |
-| `levelup.png`   | ekran/okienko awansu poziomu                                | nie      |
-| `restart.png`, `confirm.png` | do szybszej pętli z restartem                  | nie      |
-
-Wskazówki:
-- Wycinaj **mały, charakterystyczny** fragment (napis, ikonę), bez animowanego tła.
-- Sprawdzisz działanie poleceniem `python -m btd6bot test` - wypisze, które szablony widzi teraz na ekranie.
+Tips / Wskazówki: capture a **small, distinctive** fragment (text, icon) without animated background.
+PL: wycinaj **mały, charakterystyczny** fragment (napis, ikonę), bez animowanego tła.

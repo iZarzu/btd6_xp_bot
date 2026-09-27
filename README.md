@@ -1,100 +1,178 @@
 # BTD6 XP Bot
 
-Prosty bot do **Bloons TD 6**, który w kółko gra wybraną mapę w trybie **Deflation**
-(stawia zdefiniowane wieże, startuje rundy z przyspieszeniem, czeka na wygraną i zaczyna od nowa),
-żeby w tle nabijać XP konta, a z nim punkty **Monkey Knowledge**.
+**[English](#english) · [Polski](#polski)**
 
-## Jak to działa
+---
 
-Bot działa jak człowiek przy komputerze - **nie modyfikuje gry ani jej pamięci**:
+## English
 
-1. robi zrzuty ekranu (`mss`) i szuka na nich małych obrazków-szablonów (`OpenCV`), np. napisu *Victory*,
-2. klika myszką i używa skrótów klawiszowych gry (`Q` = Dart, `D` = Ninja, `,` `.` `/` = ulepszenia, spacja = start),
-3. wszystkie pozycje zapisuje jako **względne** (0-1), więc działają na każdej rozdzielczości 16:9.
+A bot for **Bloons TD 6** that replays a map in **Deflation** mode over and over
+(places the configured towers, starts the rounds on fast forward, waits for the win, repeats)
+to farm account XP and, with it, **Monkey Knowledge** points.
+The default strategy is the well-known **Infernal Deflation** farm
+(Village 2-0-2, Sniper 0-2-4, Alchemist 4-2-0, ~6 minutes per game).
 
-Deflation nadaje się idealnie: dostajesz stałą kasę na start (bez dochodu), więc wszystkie wieże
-stawia się **raz, przed pierwszą rundą** - potem bot tylko czeka do rundy 60.
+### How it works
+
+The bot behaves like a person at the computer - it **does not modify the game or its memory**:
+
+1. it grabs frames of the game window and looks for small template images in them (OpenCV),
+   e.g. the *Victory* text,
+2. it clicks and uses the game's hotkeys (`Z` = Sniper, `,` `.` `/` = upgrades, space = start),
+3. every position is stored **relative** to the game area (0-1) and templates remember the
+   resolution they were captured at, so one setup works on Full HD, 1440p and 4K.
 
 ```
-menu -> Play -> mapa -> trudność -> Deflation -> postaw wieże -> spacja x2 -> ... -> Victory
-  ^                                                                                  |
-  +------------------------------ Next -> Home (lub Restart) <-----------------------+
+menu -> Play -> Infernal -> Easy -> Deflation -> place towers -> space x2 -> ... -> Victory
+  ^                                                                                    |
+  +---------------------------- Next -> Home (or Restart) <----------------------------+
 ```
 
-## Instalacja (Windows)
+### Working while the bot plays
+
+| Setting | What happens | Your PC |
+|---|---|---|
+| `capture_mode: auto` / `window` | frames are captured with the `PrintWindow` API, even when the game is **covered** by other windows | free to use |
+| `input_mode: burst` (default) | the bot activates the game only for the few seconds it needs to click (placing towers, menus ~ every 6 min) and then **gives focus and the cursor back** | free to use, short interruptions |
+| `input_mode: background` | experimental: window messages straight to the game, nothing moves on your screen. Unity games sometimes ignore them - check with *Test input* in the GUI | fully free, if it works |
+| `input_mode: foreground` | classic: the game must stay on top | busy |
+
+Limits: the game window **must not be minimized** (Windows stops rendering it) - leave it behind
+other windows or on a second monitor. Run the game in **windowed / borderless mode with a 16:9 size**.
+
+### Installation (Windows)
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate
 pip install -r requirements.txt
+python -m btd6bot          # opens the configuration window
 ```
 
-W grze:
-- włącz **Auto Start** (Ustawienia) - kolejne rundy startują same,
-- najlepiej tryb pełnoekranowy okienkowy / okno o stałym rozmiarze, **nie zasłaniaj gry** podczas pracy bota,
-- zostaw domyślne skróty klawiszowe (albo popraw je w `config.yaml`).
+In the game: enable **Auto Start**, keep default hotkeys (or edit them in `config.yaml`).
 
-## Konfiguracja krok po kroku
+### Setup in the GUI
 
-1. **Szablony obrazków** - wytnij je według [templates/README.md](templates/README.md):
-   ```bash
-   python -m btd6bot capture victory
-   python -m btd6bot capture next
-   ...
-   ```
-2. **Pozycje wież** - wejdź ręcznie na mapę, najeżdżaj myszką na miejsca i wciskaj F9:
-   ```bash
-   python -m btd6bot pos
-   ```
-   Wklej wyniki do `strategies/<twoja_strategia>.yaml` (wzór: `strategies/deflation_example.yaml`).
-3. **Test** - `python -m btd6bot test` pokazuje, które szablony są widoczne na ekranie.
-4. **Próba jednej gry**:
-   ```bash
-   python -m btd6bot run strategies/deflation_example.yaml --games 1
-   ```
-5. **Farmienie bez końca**:
-   ```bash
-   python -m btd6bot run strategies/deflation_example.yaml
-   ```
+1. **Game** - click *Detect window*; it should show the game size. Choose capture/input mode, *Save settings*.
+2. **Templates** - open the right screen in the game (main menu, map list, win screen...), select a row
+   and *Capture selected*, then drag a rectangle around a small, distinctive fragment.
+   *Test on current screen* shows what is recognized right now.
+3. **Strategy** - open Infernal in the game, then use *Pick position & add* to click where each tower
+   goes on the screenshot (existing towers are drawn as circles). *Save*.
+4. **Run** - first try `Games = 1`, then `0` (endless). **F7** pause, **F8** stop.
 
-Sterowanie: **F7** pauza/wznowienie, **F8** stop, mysz w **lewy górny róg ekranu** = awaryjne zatrzymanie.
+Without the GUI: `python -m btd6bot run strategies/infernal_deflation.yaml --games 1`.
 
-## Format strategii
+### Strategy format
 
 ```yaml
-start_game:                       # jak z menu głównego dojść do mapy
+start_game:                       # main menu -> map
   - click_template: play
   - click_template: map
-  - click_template: hard
+  - click_template: easy
   - click_template: deflation
 
-steps:                            # co zrobić na początku gry
-  - place: {tower: ninja, name: ninja1, at: [0.42, 0.45]}
-  - upgrade: {name: ninja1, path: [4, 0, 2]}   # góra / środek / dół
+steps:                            # done at the start of each game
+  - place: {tower: village, name: village, at: [0.46, 0.50]}
+  - upgrade: {name: village, path: [2, 0, 2]}   # top / middle / bottom
 ```
 
-Dostępne kroki (w `steps`, `start_game`, `after_victory` itd.):
-
-| Krok | Opis |
+| Step | Description |
 |---|---|
-| `place: {tower, name, at}` | postaw wieżę (nazwa z `hotkeys.towers`) w punkcie `at` |
-| `upgrade: {name, path: [g, s, d]}` | kliknij wieżę i wciśnij ulepszenia tyle razy |
-| `sell: nazwa` | sprzedaj wieżę |
-| `click: [x, y]` lub `click: przycisk` | klik w punkt / nazwany przycisk z `config.yaml -> buttons` |
-| `click_template: nazwa` | poczekaj aż obrazek się pojawi i kliknij go (`optional`, `timeout`) |
-| `wait_for: nazwa` | poczekaj na obrazek |
-| `key: esc` | wciśnij klawisz (`times` = ile razy) |
-| `wait: 2` | poczekaj N sekund |
+| `place: {tower, name, at}` | place a tower (name from `hotkeys.towers`) at `at` |
+| `upgrade: {name, path: [t, m, b]}` | select the tower and press the upgrade keys |
+| `sell: name` | sell a tower |
+| `click: [x, y]` / `click: button` | click a point / a named button from `config.yaml -> buttons` |
+| `click_template: name` | wait for an image and click it (`optional`, `timeout`) |
+| `wait_for: name` | wait for an image |
+| `key: esc` | press a key (`times`) |
+| `wait: 2` | wait N seconds |
 
-## Jak farmić najefektywniej
+### Project layout
 
-- XP za grę rośnie z numerem rundy - Deflation (31-60) daje sporo XP za relatywnie krótką grę.
-- Trudniejsze kategorie map (Advanced / Expert) mają wyższy mnożnik XP, ale strategia musi być pewna -
-  **jedna przegrana kosztuje więcej niż różnica w mnożniku**. Zacznij od łatwej mapy, potem przenieś build.
-- Pętla `Next -> Restart` (patrz koniec pliku przykładowej strategii) jest szybsza i odporniejsza niż klikanie przez menu.
-- Monkey Knowledge dostajesz za kolejne poziomy konta, więc liczy się po prostu łączne XP na godzinę.
+```
+btd6bot/
+  window.py   - finding the game window, relative <-> absolute coordinates
+  capture.py  - frame capture (PrintWindow in the background / screen)
+  vision.py   - template matching with automatic rescaling
+  inputs.py   - input backends (foreground / burst / background)
+  bot.py      - the farming loop and strategy steps
+  gui.py      - tkinter configuration window
+  app.py      - shared setup, global hotkeys
+config.yaml   - settings, hotkeys, post-game sequences
+strategies/   - strategies (YAML)
+templates/    - your captured template images
+```
 
-## Uwaga
+### Disclaimer
+
+Automating the game may break Ninja Kiwi's terms of service. The bot does not touch game files or
+memory, but you use it at your own risk.
+
+---
+
+## Polski
+
+Bot do **Bloons TD 6**, który w kółko gra mapę w trybie **Deflation**
+(stawia zdefiniowane wieże, startuje rundy z przyspieszeniem, czeka na wygraną i zaczyna od nowa),
+żeby nabijać XP konta, a z nim punkty **Monkey Knowledge**.
+Domyślna strategia to znana farma **Infernal Deflation**
+(Village 2-0-2, Sniper 0-2-4, Alchemik 4-2-0, ok. 6 minut na grę).
+
+### Jak to działa
+
+Bot działa jak człowiek przy komputerze - **nie modyfikuje gry ani jej pamięci**:
+
+1. pobiera obraz okna gry i szuka w nim małych obrazków-szablonów (OpenCV), np. napisu *Victory*,
+2. klika i używa skrótów klawiszowych gry (`Z` = Sniper, `,` `.` `/` = ulepszenia, spacja = start),
+3. każda pozycja jest zapisana **względnie** (0-1), a szablony pamiętają rozdzielczość, w której je
+   wycięto - więc jedna konfiguracja działa na Full HD, 1440p i 4K.
+
+### Praca na komputerze w trakcie farmienia
+
+| Ustawienie | Co się dzieje | Twój komputer |
+|---|---|---|
+| `capture_mode: auto` / `window` | obraz pobierany przez API `PrintWindow`, także gdy gra jest **zasłonięta** innymi oknami | wolny |
+| `input_mode: burst` (domyślnie) | bot aktywuje grę tylko na kilka sekund, gdy musi kliknąć (stawianie wież, menu ~ co 6 min), a potem **oddaje Ci okno i kursor** | wolny, krótkie przerwy |
+| `input_mode: background` | eksperymentalny: komunikaty prosto do okna gry, nic się nie rusza na ekranie. Gry Unity czasem je ignorują - sprawdź przyciskiem *Test sterowania* w GUI | w pełni wolny, jeśli zadziała |
+| `input_mode: foreground` | klasyczny: gra musi być cały czas na wierzchu | zajęty |
+
+Ograniczenia: okna gry **nie wolno minimalizować** (Windows przestaje je wtedy rysować) - zostaw je
+pod innymi oknami albo na drugim monitorze. Uruchom grę **w oknie / bez ramki, w rozmiarze 16:9**.
+
+### Instalacja (Windows)
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+python -m btd6bot          # otwiera okno konfiguracji
+```
+
+W grze: włącz **Auto Start**, zostaw domyślne skróty (albo popraw je w `config.yaml`).
+
+### Konfiguracja w GUI
+
+1. **Gra** - kliknij *Wykryj okno*, powinien pokazać się rozmiar gry. Wybierz tryb obrazu/sterowania, *Zapisz ustawienia*.
+2. **Szablony** - otwórz w grze odpowiedni ekran (menu główne, lista map, ekran wygranej...), zaznacz wiersz,
+   *Wytnij zaznaczony* i zaznacz myszką mały, charakterystyczny fragment.
+   *Test na obecnym ekranie* pokaże, co bot teraz rozpoznaje.
+3. **Strategia** - wejdź w grze na Infernal, kliknij *Wskaż miejsce i dodaj* i wskaż na zrzucie, gdzie
+   ma stać każda wieża (dodane wieże są rysowane jako kółka). *Zapisz*.
+4. **Uruchom** - najpierw `Gier = 1`, potem `0` (bez końca). **F7** pauza, **F8** stop.
+
+Bez GUI: `python -m btd6bot run strategies/infernal_deflation.yaml --games 1`.
+
+Format strategii i lista kroków - patrz sekcja angielska powyżej (tabela *Step*): `place`, `upgrade`,
+`sell`, `click`, `click_template`, `wait_for`, `key`, `wait`.
+
+### Jak farmić najefektywniej
+
+- Mapy Expert (np. Infernal) dają +30% XP względem Beginner.
+- Pewność > mnożnik: jedna przegrana kosztuje więcej niż różnica w XP - najpierw przetestuj build ręcznie.
+- Pętla `Next -> Restart` (koniec pliku strategii) jest szybsza niż klikanie przez menu.
+
+### Uwaga
 
 Automatyzacja gry może naruszać regulamin Ninja Kiwi. Bot nie dotyka plików ani pamięci gry,
 ale używasz go na własną odpowiedzialność.

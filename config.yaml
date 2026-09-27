@@ -1,31 +1,49 @@
-# Ogólna konfiguracja bota. Pozycje są WZGLĘDNE: [x, y] od 0.0 do 1.0 względem okna gry
-# (odczytasz je poleceniem:  python -m btd6bot pos).
+# General bot configuration. Most of it can be edited in the GUI (python -m btd6bot).
+# PL: Ogólna konfiguracja bota. Większość można zmienić w GUI (python -m btd6bot).
+#
+# Positions are RELATIVE: [x, y] from 0.0 to 1.0 of the game area -> resolution independent.
+# PL: Pozycje są WZGLĘDNE: [x, y] od 0.0 do 1.0 obszaru gry -> niezależne od rozdzielczości.
 
-window_title: "BloonsTD6"     # tytuł okna gry (Windows); jeśli nie znajdzie - użyje całego monitora
-monitor: 1                    # numer monitora (1 = główny), gdy okno nie zostanie znalezione
+window_title: "BloonsTD6"     # part of the game window title / PL: fragment tytułu okna gry
+monitor: 1                    # used only if the window is not found / PL: gdy okno nie zostanie znalezione
 
-stop_key: f8                  # zatrzymanie bota
-pause_key: f7                 # pauza / wznowienie
+# How the bot sees the game / PL: Jak bot widzi grę:
+#   auto   - background capture, falls back to screen / PL: w tle, awaryjnie z ekranu
+#   window - background capture only (game may be covered, NOT minimized) / PL: tylko w tle
+#   screen - screenshot, the game must be visible / PL: zrzut ekranu, gra musi być widoczna
+capture_mode: auto
+
+# How the bot clicks / PL: Jak bot klika:
+#   burst      - takes focus for a few seconds when needed, then gives it back (recommended)
+#                PL: przejmuje okno na kilka sekund, gdy trzeba, potem je oddaje (zalecane)
+#   foreground - game must stay the active window / PL: gra musi być cały czas aktywna
+#   background - experimental, fully invisible (may not work with Unity)
+#                PL: eksperymentalny, w pełni niewidoczny (może nie działać z Unity)
+input_mode: burst
+
+stop_key: f8                  # stop the bot / PL: zatrzymanie bota
+pause_key: f7                 # pause / resume / PL: pauza / wznowienie
 
 templates_dir: templates
-match_threshold: 0.8          # 0-1, im wyżej tym ostrzejsze dopasowanie obrazków
-templates_reference_width: 1920  # szerokość okna, przy której wycinałeś szablony (capture to wypisze)
+match_threshold: 0.8          # 0-1, higher = stricter image matching / PL: wyżej = ostrzejsze dopasowanie
+templates_reference_width: 1920  # fallback for templates without metadata / PL: dla szablonów bez metadanych
 
 timings:
-  click_delay: 0.2            # pauza po każdym kliknięciu / klawiszu
-  menu_delay: 1.2             # pauza po kliknięciu w menu
-  load_delay: 8               # ile czekać na załadowanie mapy, gdy nie ma szablonu 'ingame'
+  click_delay: 0.2            # pause after each click / key / PL: pauza po kliknięciu / klawiszu
+  menu_delay: 1.2             # pause after a menu click / PL: pauza po kliknięciu w menu
+  load_delay: 8               # map load wait without an 'ingame' template / PL: czekanie na mapę bez szablonu 'ingame'
   after_load_delay: 1.5
-  load_timeout: 30            # maks. czekanie na szablon
-  check_interval: 3           # co ile sekund sprawdzać, czy gra się skończyła
-  max_game_minutes: 30        # po tym czasie uznajemy, że coś się zacięło
+  load_timeout: 30            # max wait for a template / PL: maks. czekanie na szablon
+  check_interval: 3           # how often to check for the game end (s) / PL: co ile sprawdzać koniec gry
+  max_game_minutes: 15        # after this we assume something got stuck / PL: po tym czasie uznajemy zawieszenie
 
-# Domyślne skróty klawiszowe BTD6. Jeśli zmieniłeś je w ustawieniach gry - popraw tutaj.
+# Default BTD6 hotkeys. Fix them here if you changed them in the game settings.
+# PL: Domyślne skróty BTD6. Popraw, jeśli zmieniłeś je w ustawieniach gry.
 hotkeys:
-  play: space                 # start rundy / przyspieszenie
+  play: space                 # start round / fast forward / PL: start rundy / przyspieszenie
   sell: backspace
   deselect: esc
-  upgrades: [",", ".", "/"]   # ścieżka górna, środkowa, dolna
+  upgrades: [",", ".", "/"]   # top, middle, bottom path / PL: ścieżka górna, środkowa, dolna
   towers:
     hero: u
     dart: q
@@ -50,27 +68,29 @@ hotkeys:
     spike: j
     village: k
     engineer: l
-    # nowsze wieże (Mermonkey, Beast Handler, Desperado...) - sprawdź skrót w ustawieniach gry i dopisz
+    # newer towers: check the hotkey in game settings and add them here
+    # PL: nowsze wieże: sprawdź skrót w ustawieniach gry i dopisz tutaj
 
-# Nazwane przyciski do użycia jako  - click: nazwa  (alternatywa dla szablonów obrazków)
+# Named points usable as `- click: name` / PL: Nazwane punkty do użycia jako `- click: nazwa`
 buttons: {}
 
-# Okienka, które mogą wyskoczyć w trakcie gry (np. awans poziomu) - bot kliknie w nie, jeśli je zobaczy.
-# Brakujące pliki są po prostu pomijane.
-dismiss_templates: [levelup, ok, continue]
+# Popups that may appear during a game - the bot clicks them when seen. Missing files are skipped.
+# PL: Okienka, które mogą wyskoczyć w trakcie gry - bot je klika. Brakujące pliki są pomijane.
+dismiss_templates: [levelup, ok]
 
-# Co zrobić po wygranej / przegranej / zawieszeniu (strategia może to nadpisać).
+# What to do after a win / loss / timeout (a strategy may override these).
+# PL: Co zrobić po wygranej / przegranej / zawieszeniu (strategia może to nadpisać).
 after_victory:
   - click_template: next
   - click_template: home
   - wait: 3
-  - click_template: levelup   # ekran awansu na poziom, jeśli wyskoczy
+  - click_template: levelup   # level-up screen, if it shows up / PL: ekran awansu, jeśli wyskoczy
     optional: true
     timeout: 3
 after_defeat:
   - click_template: home
   - wait: 3
-recovery:                     # timeout: próbujemy wrócić do menu głównego
+recovery:                     # try to get back to the main menu / PL: próba powrotu do menu
   - key: esc
   - wait: 1
   - click_template: home

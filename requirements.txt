@@ -5,4 +5,3 @@ PyYAML>=6.0
 pyautogui>=0.9.54
 pynput>=1.7
 pydirectinput>=1.0.4; sys_platform == "win32"
-pygetwindow>=0.0.9; sys_platform == "win32"

@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable
 
 from .control import Control, StopRequested
@@ -21,23 +21,32 @@ POLL_INTERVAL = 0.15  # seconds between screen checks while waiting / PL: odstę
 
 @dataclass
 class Stats:
-    started: float = field(default_factory=time.monotonic)
+    """Totals that may span several runs (the GUI keeps one object per session).
+
+    PL: Sumy, które mogą obejmować kilka serii (GUI trzyma jeden obiekt na całą sesję).
+    """
     games: int = 0
     wins: int = 0
     losses: int = 0
     timeouts: int = 0
     last_game_seconds: float = 0.0
+    finished_runs_seconds: float = 0.0  # running time of finished runs / PL: czas zakończonych serii
+    run_started: float | None = None    # set while a run is in progress / PL: ustawione w trakcie serii
+
+    def running_seconds(self) -> float:
+        current = time.monotonic() - self.run_started if self.run_started is not None else 0.0
+        return self.finished_runs_seconds + current
 
     def summary(self) -> str:
-        hours = (time.monotonic() - self.started) / 3600
         return (f"games {self.games} | wins {self.wins} | losses {self.losses} | "
-                f"timeouts {self.timeouts} | last {self.last_game_seconds / 60:.1f} min | total {hours:.2f} h")
+                f"timeouts {self.timeouts} | last {self.last_game_seconds / 60:.1f} min | "
+                f"total {self.running_seconds() / 3600:.2f} h")
 
 
 class Bot:
     def __init__(self, config: dict[str, Any], strategy: dict[str, Any], game: GameWindow,
                  capture, inputs, templates: TemplateLibrary, control: Control,
-                 on_stats: Callable[[Stats], None] | None = None):
+                 on_stats: Callable[[Stats], None] | None = None, stats: Stats | None = None):
         self.cfg = config
         self.strategy = strategy
         self.game = game
@@ -50,7 +59,8 @@ class Bot:
         self.hotkeys: dict[str, Any] = config["hotkeys"]
         self.buttons: dict[str, list[float]] = config.get("buttons") or {}
         self.placed: dict[str, Point] = {}
-        self.stats = Stats()
+        self.stats = stats or Stats()
+        self.played = 0  # games in the current run / PL: gry w bieżącej serii
 
     # ------------------------------------------------------------------ loop / pętla
     def run(self, max_games: int | None = None) -> Stats:
@@ -58,7 +68,8 @@ class Bot:
                  self.capture.name, self.input.name)
         need_menu = not self.strategy.get("start_in_game", False)
         try:
-            while max_games is None or self.stats.games < max_games:
+            self.stats.run_started = time.monotonic()
+            while max_games is None or self.played < max_games:
                 self.game.refresh()
                 if need_menu:
                     log.info("Entering the map...")
@@ -68,6 +79,7 @@ class Bot:
                 self.play_one_game()
                 result = self.wait_for_game_end()
                 self.stats.games += 1
+                self.played += 1
                 self.stats.last_game_seconds = time.monotonic() - game_start
                 if result == "victory":
                     self.stats.wins += 1
@@ -84,6 +96,10 @@ class Bot:
                 need_menu = True
         except StopRequested:
             log.info("Stopped. %s", self.stats.summary())
+        finally:
+            if self.stats.run_started is not None:
+                self.stats.finished_runs_seconds += time.monotonic() - self.stats.run_started
+                self.stats.run_started = None
         return self.stats
 
     def post_game_sequence(self, result: str) -> list[dict[str, Any]]:

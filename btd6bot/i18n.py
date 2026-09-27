@@ -158,13 +158,15 @@ STRINGS: dict[str, dict[str, str]] = {
     "stop": {"en": "■ Stop (F8)", "pl": "■ Stop (F8)"},
     "missing_templates": {"en": "Missing required templates:\n{names}\n\nStart anyway?",
                           "pl": "Brak wymaganych szablonów:\n{names}\n\nUruchomić mimo to?"},
+    "stats_run": {"en": " | this run: {done}/{total}", "pl": " | ta seria: {done}/{total}"},
+    "reset_stats": {"en": "Reset stats", "pl": "Wyzeruj statystyki"},
     "bot_crashed": {"en": "Bot crashed: {err}", "pl": "Bot przerwał pracę: {err}"},
     "paused": {"en": "Paused.", "pl": "Pauza."},
     "resumed": {"en": "Resumed.", "pl": "Wznowiono."},
     "stats": {"en": "Games: {games} | wins: {wins} | losses: {losses} | timeouts: {timeouts} | "
-                    "last game: {last:.1f} min | running: {hours:.2f} h",
+                    "last game: {last} | running: {running}",
               "pl": "Gry: {games} | wygrane: {wins} | przegrane: {losses} | zawieszenia: {timeouts} | "
-                    "ostatnia gra: {last:.1f} min | czas pracy: {hours:.2f} h"},
+                    "ostatnia gra: {last} | czas pracy: {running}"},
     # --- advanced tab / zakładka zaawansowana
     "tab_advanced": {"en": "Advanced (config.yaml)", "pl": "Zaawansowane (config.yaml)"},
     "advanced_help": {"en": "Timings, hotkeys, post-game sequences",

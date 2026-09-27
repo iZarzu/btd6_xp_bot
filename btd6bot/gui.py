@@ -30,6 +30,7 @@ import yaml
 
 from . import __version__
 from .app import STRATEGIES_DIR, build_runtime, load_user_settings, load_yaml, save_user_settings, start_hotkeys
+from .bot import Bot, Stats
 from .control import Control
 from .i18n import LANGUAGES, STRINGS, default_language, translate
 from .recorder import ClickCatcher
@@ -48,6 +49,14 @@ TEMPLATES = [
 CAPTURE_MODES = ["auto", "window", "screen"]
 INPUT_MODES = ["burst", "foreground", "background"]
 APP_TITLE = "BTD6 XP Bot"
+
+
+def format_duration(seconds: float) -> str:
+    """1:05:09 / 5:07 style. / PL: Format 1:05:09 / 5:07."""
+    seconds = int(seconds)
+    hours, rest = divmod(seconds, 3600)
+    minutes, secs = divmod(rest, 60)
+    return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
 
 
 class QueueLogHandler(logging.Handler):
@@ -197,7 +206,9 @@ class App(tk.Tk):
         self._tabs: list[tuple[ttk.Frame, str]] = []
         self._window_info: tuple | None = None
         self._visible: dict[str, bool] = {}
-        self._stats: dict | None = None
+        self.session_stats = Stats()  # summed over all runs while the window is open / PL: suma wszystkich serii
+        self.bot: Bot | None = None
+        self._run_target: int | None = None
         self.log_queue: queue.Queue = queue.Queue()
         log.addHandler(QueueLogHandler(self.log_queue))
         log.setLevel(logging.INFO)
@@ -784,6 +795,7 @@ class App(tk.Tk):
         self.tw(ttk.Button(row, command=self.start_bot), "start").pack(side="left", padx=4)
         self.tw(ttk.Button(row, command=self.pause_bot), "pause").pack(side="left")
         self.tw(ttk.Button(row, command=self.stop_bot), "stop").pack(side="left", padx=4)
+        self.tw(ttk.Button(row, command=self.reset_stats), "reset_stats").pack(side="left", padx=(16, 0))
         self.lbl_stats = ttk.Label(tab, text="", font=("Segoe UI", 10, "bold"))
         self.lbl_stats.pack(anchor="w", padx=6)
         self.log_text = scrolledtext.ScrolledText(tab, height=20, state="disabled", font=("Consolas", 9))
@@ -803,23 +815,18 @@ class App(tk.Tk):
         self.control = Control()
         start_hotkeys(self.control, cfg.get("stop_key", "f8"), cfg.get("pause_key", "f7"))
         games = self.var_games.get() or None
+        self._run_target = games
+        self.bot = None
         self.bot_thread = threading.Thread(target=self._bot_main, args=(cfg, strategy, self.control, games),
                                            daemon=True)
         self.bot_thread.start()
 
     def _bot_main(self, cfg: dict, strategy: dict, control: Control, games: int | None) -> None:
-        from .bot import Bot
-
-        def on_stats(s) -> None:
-            # Snapshot, the GUI thread formats it in the current language.
-            # PL: Kopia danych - wątek GUI formatuje ją w bieżącym języku.
-            self.log_queue.put(("stats", {
-                "games": s.games, "wins": s.wins, "losses": s.losses, "timeouts": s.timeouts,
-                "last": s.last_game_seconds / 60, "hours": (time.monotonic() - s.started) / 3600}))
-
         try:
             rt = build_runtime(cfg)
-            Bot(cfg, strategy, rt.game, rt.capture, rt.input, rt.templates, control, on_stats=on_stats).run(games)
+            self.bot = Bot(cfg, strategy, rt.game, rt.capture, rt.input, rt.templates, control,
+                           stats=self.session_stats)
+            self.bot.run(games)
         except Exception as exc:  # show any crash in the log / PL: każdy błąd trafia do logu
             log.exception(self.t("bot_crashed", err=exc))
 
@@ -831,18 +838,34 @@ class App(tk.Tk):
         if self.control:
             self.control.stop()
 
+    def reset_stats(self) -> None:
+        stats = self.session_stats
+        running = stats.run_started is not None
+        stats.games = stats.wins = stats.losses = stats.timeouts = 0
+        stats.last_game_seconds = stats.finished_runs_seconds = 0.0
+        stats.run_started = time.monotonic() if running else None
+        self._show_stats()
+
     def _show_stats(self) -> None:
-        if self._stats:
-            self.lbl_stats.configure(text=self.t("stats", **self._stats))
+        s = self.session_stats
+        if not s.games and s.run_started is None and not s.finished_runs_seconds:
+            self.lbl_stats.configure(text="")
+            return
+        text = self.t("stats", games=s.games, wins=s.wins, losses=s.losses, timeouts=s.timeouts,
+                      last=format_duration(s.last_game_seconds), running=format_duration(s.running_seconds()))
+        if s.run_started is not None and self.bot is not None:
+            total = self._run_target if self._run_target else "∞"
+            text += self.t("stats_run", done=self.bot.played, total=total)
+        self.lbl_stats.configure(text=text)
 
     def _poll_log(self) -> None:
         self._handle_click_events()
+        now = time.monotonic()
+        if now - getattr(self, "_stats_shown", 0.0) >= 1.0:  # live stats once a second / PL: co sekundę
+            self._stats_shown = now
+            self._show_stats()
         while not self.log_queue.empty():
             item = self.log_queue.get_nowait()
-            if isinstance(item, tuple):
-                self._stats = item[1]
-                self._show_stats()
-                continue
             self.log_text.configure(state="normal")
             self.log_text.insert("end", item + "\n")
             self.log_text.see("end")

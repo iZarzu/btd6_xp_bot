@@ -66,7 +66,9 @@ def build_runtime(cfg: dict[str, Any], with_input: bool = True) -> Runtime:
         log.warning("Game area is not 16:9 (%.2f) - positions may be off. Use a 16:9 window. "
                     "/ Obszar gry nie ma proporcji 16:9 - użyj okna 16:9.", ratio)
     capture = make_capture(cfg.get("capture_mode", "auto"), game)
-    inputs = make_input(cfg.get("input_mode", "burst"), game, cfg["timings"]["click_delay"]) if with_input else None
+    timings = cfg["timings"]
+    inputs = (make_input(cfg.get("input_mode", "burst"), game, timings["click_delay"], timings.get("key_delay", 0.08))
+              if with_input else None)
     templates = TemplateLibrary(ROOT / cfg.get("templates_dir", "templates"),
                                 cfg.get("match_threshold", 0.8), cfg.get("templates_reference_width", 1920))
     return Runtime(game, capture, inputs, templates)

@@ -49,9 +49,10 @@ def vk_code(key: str) -> int:
 class ForegroundInput:
     name = "foreground"
 
-    def __init__(self, game: GameWindow, click_delay: float):
+    def __init__(self, game: GameWindow, click_delay: float, key_delay: float = 0.08):
         self.game = game
         self.click_delay = click_delay
+        self.key_delay = key_delay
         import pyautogui
 
         pyautogui.FAILSAFE = True  # mouse to top-left corner = emergency stop / PL: awaryjny stop
@@ -83,16 +84,16 @@ class ForegroundInput:
     def press(self, key: str, times: int = 1) -> None:
         for _ in range(times):
             self._keys.press(key)
-            time.sleep(self.click_delay)
+            time.sleep(self.key_delay)
 
 
 class BurstInput(ForegroundInput):
     name = "burst"
 
-    def __init__(self, game: GameWindow, click_delay: float):
+    def __init__(self, game: GameWindow, click_delay: float, key_delay: float = 0.08):
         if not IS_WINDOWS or game.hwnd is None:
             raise RuntimeError("Burst input needs Windows and a found game window")
-        super().__init__(game, click_delay)
+        super().__init__(game, click_delay, key_delay)
         self._depth = 0
 
     @contextlib.contextmanager
@@ -127,11 +128,12 @@ class BurstInput(ForegroundInput):
 class BackgroundInput:
     name = "background"
 
-    def __init__(self, game: GameWindow, click_delay: float):
+    def __init__(self, game: GameWindow, click_delay: float, key_delay: float = 0.08):
         if not IS_WINDOWS or game.hwnd is None:
             raise RuntimeError("Background input needs Windows and a found game window")
         self.game = game
         self.click_delay = click_delay
+        self.key_delay = key_delay
         self._post = ctypes.windll.user32.PostMessageW
         self._post.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_size_t, ctypes.c_ssize_t]
         self._scan = ctypes.windll.user32.MapVirtualKeyW
@@ -170,7 +172,7 @@ class BackgroundInput:
             self._post(self.game.hwnd, WM_KEYDOWN, vk, down)
             time.sleep(0.04)
             self._post(self.game.hwnd, WM_KEYUP, vk, up)
-            time.sleep(self.click_delay)
+            time.sleep(self.key_delay)
 
 
 def _bring_to_front(hwnd: int) -> None:
@@ -195,6 +197,6 @@ def _bring_to_front(hwnd: int) -> None:
             user32.AttachThreadInput(this_thread, fg_thread, False)
 
 
-def make_input(mode: str, game: GameWindow, click_delay: float):
+def make_input(mode: str, game: GameWindow, click_delay: float, key_delay: float = 0.08):
     backends = {"foreground": ForegroundInput, "burst": BurstInput, "background": BackgroundInput}
-    return backends[mode](game, click_delay)
+    return backends[mode](game, click_delay, key_delay)

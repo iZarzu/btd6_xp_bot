@@ -16,6 +16,7 @@ from .window import GameWindow
 log = logging.getLogger("btd6bot")
 
 Point = tuple[float, float]
+POLL_INTERVAL = 0.15  # seconds between screen checks while waiting / PL: odstęp między sprawdzeniami ekranu
 
 
 @dataclass
@@ -77,9 +78,7 @@ class Bot:
                 log.info("Result: %s | %s", result, self.stats.summary())
                 if self.on_stats:
                     self.on_stats(self.stats)
-                self.run_sequence(self.post_game_sequence(result))
-                # After "Restart" we are already back in the game. / PL: Po „Restart” jesteśmy już w grze.
-                need_menu = result == "timeout" or not self.strategy.get("restart_skips_menu", False)
+                need_menu = not self.after_game(result)
         except StopRequested:
             log.info("Stopped. %s", self.stats.summary())
         return self.stats
@@ -87,6 +86,31 @@ class Bot:
     def post_game_sequence(self, result: str) -> list[dict[str, Any]]:
         key = {"victory": "after_victory", "defeat": "after_defeat"}.get(result, "recovery")
         return self.strategy.get(key, self.cfg.get(key, []))
+
+    def after_game(self, result: str) -> bool:
+        """Handle the post-game screens. Returns True if we are already back in a new game.
+
+        With a captured 'restart' template (and no custom after_victory in the strategy) the bot
+        uses Next -> Restart, which skips the whole menu (Play, map, difficulty, mode).
+        PL: Obsługa ekranów po grze. Zwraca True, jeśli jesteśmy już w nowej grze.
+        Z wyciętym szablonem 'restart' (i bez własnego after_victory w strategii) bot używa
+        Next -> Restart, co pomija całe menu (Play, mapa, trudność, tryb).
+        """
+        if result == "victory" and "after_victory" not in self.strategy and self.templates.exists("restart"):
+            with self.input.session():
+                self.run_step({"click_template": "next"})
+                restart = self.wait_for_template("restart", 5)
+                if restart:
+                    self.click(restart)
+                    self.run_step({"click_template": "confirm", "optional": True, "timeout": 2})
+                    log.info("Restarting the map.")
+                    return True
+                log.warning("'restart' not found - going back through the menu.")
+                self.run_step({"click_template": "home", "optional": True, "timeout": 5})
+            return False
+        self.run_sequence(self.post_game_sequence(result))
+        # After "Restart" we are already back in the game. / PL: Po „Restart” jesteśmy już w grze.
+        return result != "timeout" and bool(self.strategy.get("restart_skips_menu", False))
 
     # ------------------------------------------------------------------ game / gra
     def wait_until_in_game(self) -> None:
@@ -136,13 +160,7 @@ class Bot:
                 if self.templates.find("defeat", frame):
                     log.info("Defeat detected %.0f s after the rounds started.", time.monotonic() - started)
                     return "defeat"
-            for name in dismiss:
-                pos = self.templates.find(name, frame)
-                if pos:
-                    log.info("Closing popup '%s'.", name)
-                    with self.input.session():
-                        self.click(pos)
-                    break
+            self._close_popups(frame, dismiss)
         return "timeout"
 
     # ------------------------------------------------------------------ steps / kroki
@@ -173,7 +191,9 @@ class Bot:
                 pos = self.wait_for_template(name, step.get("timeout", self.timings["load_timeout"]))
             if pos:
                 self.click(pos)
-                self.control.sleep(self.timings["menu_delay"])
+                # The next step waits for its own button anyway, so only a short pause is needed.
+                # PL: Następny krok i tak czeka na swój przycisk, więc wystarczy krótka pauza.
+                self.control.sleep(self.timings.get("after_click_delay", 0.3))
             elif not step.get("optional", False):
                 log.warning("Template '%s' not found on screen.", name)
         elif "wait_for" in step:
@@ -269,19 +289,41 @@ class Bot:
                 arrow = self.resolve_point(next_page)
             log.info("'%s' not on this page, going to the next one (%d/%d).", name, page + 1, max_pages)
             self.click(arrow)
-            self.control.sleep(self.timings["menu_delay"])
+            # Let the page scroll animation finish. / PL: Poczekaj na koniec animacji przewijania.
+            self.control.sleep(self.timings.get("page_delay", 0.6))
         return None
 
     def wait_for_template(self, name: str, timeout: float) -> Point | None:
+        """Wait until the template is on screen and stays in place (menus slide in with an animation).
+        Popups (e.g. level-up) that show up meanwhile are closed.
+
+        PL: Czeka, aż szablon będzie na ekranie i przestanie się ruszać (menu wjeżdżają z animacją).
+        Okienka (np. awans), które pojawią się w międzyczasie, są zamykane.
+        """
         if not self.templates.exists(name):
             log.warning("Missing template templates/%s.png - skipping.", name)
             return None
+        dismiss = [d for d in (self.cfg.get("dismiss_templates") or []) if d != name]
         deadline = time.monotonic() + timeout
+        previous = None
         while time.monotonic() < deadline:
             frame = self.grab_gray()
             if frame is not None:
                 pos = self.templates.find(name, frame)
-                if pos:
+                if pos and previous and abs(pos[0] - previous[0]) < 0.005 and abs(pos[1] - previous[1]) < 0.005:
                     return pos
-            self.control.sleep(0.5)
+                previous = pos
+                if not pos:
+                    self._close_popups(frame, dismiss)
+            self.control.sleep(POLL_INTERVAL)
         return None
+
+    def _close_popups(self, frame, names: list[str]) -> bool:
+        for popup in names:
+            pos = self.templates.find(popup, frame)
+            if pos:
+                log.info("Closing popup '%s'.", popup)
+                with self.input.session():
+                    self.click(pos)
+                return True
+        return False

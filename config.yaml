@@ -1,0 +1,79 @@
+# Ogólna konfiguracja bota. Pozycje są WZGLĘDNE: [x, y] od 0.0 do 1.0 względem okna gry
+# (odczytasz je poleceniem:  python -m btd6bot pos).
+
+window_title: "BloonsTD6"     # tytuł okna gry (Windows); jeśli nie znajdzie - użyje całego monitora
+monitor: 1                    # numer monitora (1 = główny), gdy okno nie zostanie znalezione
+
+stop_key: f8                  # zatrzymanie bota
+pause_key: f7                 # pauza / wznowienie
+
+templates_dir: templates
+match_threshold: 0.8          # 0-1, im wyżej tym ostrzejsze dopasowanie obrazków
+templates_reference_width: 1920  # szerokość okna, przy której wycinałeś szablony (capture to wypisze)
+
+timings:
+  click_delay: 0.2            # pauza po każdym kliknięciu / klawiszu
+  menu_delay: 1.2             # pauza po kliknięciu w menu
+  load_delay: 8               # ile czekać na załadowanie mapy, gdy nie ma szablonu 'ingame'
+  after_load_delay: 1.5
+  load_timeout: 30            # maks. czekanie na szablon
+  check_interval: 3           # co ile sekund sprawdzać, czy gra się skończyła
+  max_game_minutes: 30        # po tym czasie uznajemy, że coś się zacięło
+
+# Domyślne skróty klawiszowe BTD6. Jeśli zmieniłeś je w ustawieniach gry - popraw tutaj.
+hotkeys:
+  play: space                 # start rundy / przyspieszenie
+  sell: backspace
+  deselect: esc
+  upgrades: [",", ".", "/"]   # ścieżka górna, środkowa, dolna
+  towers:
+    hero: u
+    dart: q
+    boomerang: w
+    bomb: e
+    tack: r
+    ice: t
+    glue: y
+    sniper: z
+    sub: x
+    buccaneer: c
+    ace: v
+    heli: b
+    mortar: n
+    dartling: m
+    wizard: a
+    super: s
+    ninja: d
+    alchemist: f
+    druid: g
+    banana: h
+    spike: j
+    village: k
+    engineer: l
+    # nowsze wieże (Mermonkey, Beast Handler, Desperado...) - sprawdź skrót w ustawieniach gry i dopisz
+
+# Nazwane przyciski do użycia jako  - click: nazwa  (alternatywa dla szablonów obrazków)
+buttons: {}
+
+# Okienka, które mogą wyskoczyć w trakcie gry (np. awans poziomu) - bot kliknie w nie, jeśli je zobaczy.
+# Brakujące pliki są po prostu pomijane.
+dismiss_templates: [levelup, ok, continue]
+
+# Co zrobić po wygranej / przegranej / zawieszeniu (strategia może to nadpisać).
+after_victory:
+  - click_template: next
+  - click_template: home
+  - wait: 3
+  - click_template: levelup   # ekran awansu na poziom, jeśli wyskoczy
+    optional: true
+    timeout: 3
+after_defeat:
+  - click_template: home
+  - wait: 3
+recovery:                     # timeout: próbujemy wrócić do menu głównego
+  - key: esc
+  - wait: 1
+  - click_template: home
+    optional: true
+    timeout: 5
+  - wait: 3

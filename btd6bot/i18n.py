@@ -70,40 +70,74 @@ STRINGS: dict[str, dict[str, str]] = {
     "tpl_levelup": {"en": "level-up popup", "pl": "okienko awansu poziomu"},
     "tpl_restart": {"en": "'Restart' button (faster loop)", "pl": "przycisk 'Restart' (szybsza pętla)"},
     "tpl_confirm": {"en": "restart confirmation button", "pl": "przycisk potwierdzenia restartu"},
+    # --- monkeys tab / zakładka małpek
+    "tab_monkeys": {"en": "2. Monkeys", "pl": "2. Małpki"},
+    "monkeys_help": {
+        "en": "Monkeys placed at the start of every game, in this order. Pick the upgrades (only combinations "
+              "allowed by the game can be chosen). 'Set position': open a fresh game on the map first - the bot "
+              "switches to the game and presses the monkey's hotkey, you just move the mouse and click where it "
+              "should stand (Esc cancels). Changes are saved to the strategy file right away.",
+        "pl": "Małpki stawiane na początku każdej gry, w tej kolejności. Wybierz ulepszenia (da się wybrać tylko "
+              "kombinacje dozwolone w grze). 'Ustaw pozycję': najpierw wejdź w grze na mapę - bot przełączy na grę "
+              "i wciśnie skrót małpki, a Ty tylko najeżdżasz myszką i klikasz, gdzie ma stać (Esc anuluje). "
+              "Zmiany od razu zapisują się w pliku strategii."},
+    "monkeys_file": {"en": "Strategy file: {name} (change it in the Strategy tab)",
+                     "pl": "Plik strategii: {name} (zmienisz go w zakładce Strategia)"},
+    "col_monkey": {"en": "Monkey", "pl": "Małpka"},
+    "col_top": {"en": "Top", "pl": "Góra"},
+    "col_middle": {"en": "Middle", "pl": "Środek"},
+    "col_bottom": {"en": "Bottom", "pl": "Dół"},
+    "col_position": {"en": "Position", "pl": "Pozycja"},
+    "not_set": {"en": "not set", "pl": "nieustawiona"},
+    "set_position": {"en": "Set position", "pl": "Ustaw pozycję"},
+    "add_monkey": {"en": "+ Add monkey", "pl": "+ Dodaj małpkę"},
+    "monkeys_saved": {"en": "Saved to {name}.", "pl": "Zapisano w {name}."},
+    "place_waiting": {"en": "In the game: move the mouse and click where the {monkey} should stand (Esc cancels)...",
+                      "pl": "W grze: najedź myszką i kliknij, gdzie ma stać {monkey} (Esc anuluje)..."},
+    "place_saved": {"en": "{monkey}: position {pos} saved.", "pl": "{monkey}: zapisano pozycję {pos}."},
+    "place_cancelled": {"en": "Setting the position cancelled.", "pl": "Anulowano ustawianie pozycji."},
+    "place_timeout": {"en": "No click within 60 s - cancelled.", "pl": "Brak kliknięcia przez 60 s - anulowano."},
+    "other_steps": {"en": "The strategy contains other steps (sell, wait...) that this tab can't show. "
+                          "Saving from here will remove them. Continue?",
+                    "pl": "Strategia zawiera inne kroki (sell, wait...), których ta zakładka nie pokazuje. "
+                          "Zapis stąd je usunie. Kontynuować?"},
+    "yaml_broken": {"en": "The strategy YAML has errors - fix it in the Strategy tab.",
+                    "pl": "YAML strategii ma błędy - popraw go w zakładce Strategia."},
+    # --- tower names / nazwy małpek (as in the game / jak w grze)
+    "tower_hero": {"en": "Hero", "pl": "Bohater"},
+    "tower_dart": {"en": "Dart Monkey", "pl": "Dart Monkey"},
+    "tower_boomerang": {"en": "Boomerang Monkey", "pl": "Boomerang Monkey"},
+    "tower_bomb": {"en": "Bomb Shooter", "pl": "Bomb Shooter"},
+    "tower_tack": {"en": "Tack Shooter", "pl": "Tack Shooter"},
+    "tower_ice": {"en": "Ice Monkey", "pl": "Ice Monkey"},
+    "tower_glue": {"en": "Glue Gunner", "pl": "Glue Gunner"},
+    "tower_sniper": {"en": "Sniper Monkey", "pl": "Sniper Monkey (snajper)"},
+    "tower_sub": {"en": "Monkey Sub", "pl": "Monkey Sub"},
+    "tower_buccaneer": {"en": "Monkey Buccaneer", "pl": "Monkey Buccaneer"},
+    "tower_ace": {"en": "Monkey Ace", "pl": "Monkey Ace"},
+    "tower_heli": {"en": "Heli Pilot", "pl": "Heli Pilot"},
+    "tower_mortar": {"en": "Mortar Monkey", "pl": "Mortar Monkey"},
+    "tower_dartling": {"en": "Dartling Gunner", "pl": "Dartling Gunner"},
+    "tower_wizard": {"en": "Wizard Monkey", "pl": "Wizard Monkey"},
+    "tower_super": {"en": "Super Monkey", "pl": "Super Monkey"},
+    "tower_ninja": {"en": "Ninja Monkey", "pl": "Ninja Monkey"},
+    "tower_alchemist": {"en": "Alchemist", "pl": "Alchemist (alchemik)"},
+    "tower_druid": {"en": "Druid", "pl": "Druid"},
+    "tower_banana": {"en": "Banana Farm", "pl": "Banana Farm"},
+    "tower_spike": {"en": "Spike Factory", "pl": "Spike Factory"},
+    "tower_village": {"en": "Monkey Village", "pl": "Monkey Village (wioska)"},
+    "tower_engineer": {"en": "Engineer Monkey", "pl": "Engineer Monkey"},
+    "strategy_help": {"en": "Advanced: the strategy as YAML text. The Monkeys tab edits the 'steps' part of it.",
+                      "pl": "Zaawansowane: strategia jako tekst YAML. Zakładka Małpki edytuje jej część 'steps'."},
+    "err_no_position": {"en": "Monkey '{name}' has no position - set it in the Monkeys tab.",
+                        "pl": "Małpka '{name}' nie ma pozycji - ustaw ją w zakładce Małpki."},
+    "err_invalid_path": {"en": "Monkey '{name}' has upgrades not allowed by the game: {path}",
+                         "pl": "Małpka '{name}' ma ulepszenia niedozwolone w grze: {path}"},
     # --- strategy tab / zakładka strategii
-    "tab_strategy": {"en": "2. Strategy", "pl": "2. Strategia"},
+    "tab_strategy": {"en": "3. Strategy (YAML)", "pl": "3. Strategia (YAML)"},
     "file": {"en": "File:", "pl": "Plik:"},
     "save": {"en": "Save", "pl": "Zapisz"},
     "save_as": {"en": "Save as…", "pl": "Zapisz jako…"},
-    "record_box": {"en": "Record tower positions by placing them in the game (recommended)",
-                   "pl": "Nagraj pozycje wież, stawiając je w grze (zalecane)"},
-    "record_help": {
-        "en": "Start the map in the game and click Record. In the game press the tower hotkey (e.g. K village, "
-              "Z sniper, F alchemist) and click where it should stand - the exact click is saved. Esc cancels. "
-              "Then click Stop: only the positions (at: [...]) of the matching towers in the editor are updated, "
-              "upgrades stay unchanged.",
-        "pl": "Wejdź w grze na mapę i kliknij Nagrywaj. W grze wciśnij skrót wieży (np. K wioska, Z snajper, "
-              "F alchemik) i kliknij, gdzie ma stać - zapisuje się dokładne miejsce kliknięcia. Esc anuluje. "
-              "Potem kliknij Stop: w edytorze zmienią się tylko pozycje (at: [...]) pasujących wież, "
-              "ulepszenia zostają bez zmian."},
-    "record_start": {"en": "⏺ Record", "pl": "⏺ Nagrywaj"},
-    "record_stop": {"en": "⏹ Stop recording", "pl": "⏹ Zatrzymaj nagrywanie"},
-    "record_undo": {"en": "↶ Undo last", "pl": "↶ Cofnij ostatnią"},
-    "record_status": {"en": "Recorded towers: {n} | last: {last}", "pl": "Nagrane wieże: {n} | ostatnia: {last}"},
-    "record_pending": {"en": "(placing: {tower} - click on the map)",
-                       "pl": "(stawiasz: {tower} - kliknij na mapie)"},
-    "record_started": {"en": "Recording started - place the towers in the game.",
-                       "pl": "Nagrywanie rozpoczęte - postaw wieże w grze."},
-    "record_applied": {"en": "Updated positions of {n} towers - check them and click Save.",
-                       "pl": "Zaktualizowano pozycje {n} wież - sprawdź i kliknij Zapisz."},
-    "record_unmatched": {"en": "These recorded towers have no 'place' line in the strategy and were skipped: {towers}",
-                         "pl": "Te nagrane wieże nie mają linii 'place' w strategii i zostały pominięte: {towers}"},
-    "add_tower_box": {"en": "Or add a tower manually on a screenshot (at the cursor position in the editor)",
-                      "pl": "Albo dodaj wieżę ręcznie na zrzucie (w miejscu kursora w edytorze)"},
-    "name": {"en": "name:", "pl": "nazwa:"},
-    "upgrades": {"en": "upgrades:", "pl": "ulepszenia:"},
-    "pick_add": {"en": "Pick position & add", "pl": "Wskaż miejsce i dodaj"},
-    "insert_point": {"en": "Insert point [x, y]", "pl": "Wstaw punkt [x, y]"},
     "err_steps": {"en": "'steps' must be a non-empty list", "pl": "'steps' musi być niepustą listą"},
     "err_unknown_tower": {"en": "Unknown tower: {tower}", "pl": "Nieznana wieża: {tower}"},
     "err_upgrade_first": {"en": "Upgrade before the tower is placed: {name}",
@@ -112,7 +146,7 @@ STRINGS: dict[str, dict[str, str]] = {
     "strategy_saved": {"en": "Strategy saved: {name}", "pl": "Zapisano strategię: {name}"},
     "file_name_prompt": {"en": "File name (.yaml):", "pl": "Nazwa pliku (.yaml):"},
     # --- run tab / zakładka uruchamiania
-    "tab_run": {"en": "3. Run", "pl": "3. Uruchom"},
+    "tab_run": {"en": "4. Run", "pl": "4. Uruchom"},
     "games": {"en": "Games (0 = endless):", "pl": "Gier (0 = bez końca):"},
     "start": {"en": "▶ Start", "pl": "▶ Start"},
     "pause": {"en": "⏸ Pause (F7)", "pl": "⏸ Pauza (F7)"},

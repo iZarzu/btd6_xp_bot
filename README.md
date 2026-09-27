@@ -61,10 +61,11 @@ the version is shown in the bottom-right corner.
 2. **Templates** - open the right screen in the game (main menu, map list, win screen...), select a row
    and *Capture selected*, then drag a rectangle around a small, distinctive fragment.
    *Test on current screen* shows what is recognized right now.
-3. **Strategy** - open Infernal in the game and click **Record**. In the game press a tower hotkey
-   (K village, Z sniper, F alchemist) and click where it should stand - the exact click position is
-   saved, so the bot clicks the same spot later. Click **Stop recording**: only the `at: [...]` positions
-   of the matching `place` lines are updated, upgrades stay as they are. *Save*.
+3. **Monkeys** - the towers placed at the start of each game, in order, with three upgrade pickers
+   (only combinations allowed by the game can be selected). Open a fresh game on the map, click
+   **Set position** next to a monkey: the bot switches to the game and presses its hotkey, you move the
+   mouse and click where it should stand - that exact click is saved. Changes are saved immediately.
+   The **Strategy (YAML)** tab shows the same strategy as text for advanced edits.
 4. **Run** - first try `Games = 1`, then `0` (endless). **F7** pause, **F8** stop.
 
 Without the GUI: `python -m btd6bot run strategies/infernal_deflation.yaml --games 1`.
@@ -107,7 +108,8 @@ btd6bot/
   gui.py      - tkinter configuration window
   app.py      - shared setup, global hotkeys
   i18n.py     - GUI translations (en / pl)
-  recorder.py - recording tower positions from real hotkey + click
+  strategy.py - monkeys <-> strategy steps, BTD6 upgrade rules
+  recorder.py - catching the user's click in the game (Set position)
 config.yaml   - settings, hotkeys, post-game sequences
 strategies/   - strategies (YAML)
 templates/    - your captured template images
@@ -175,10 +177,11 @@ wersja programu jest w prawym dolnym rogu.
 2. **Szablony** - otwórz w grze odpowiedni ekran (menu główne, lista map, ekran wygranej...), zaznacz wiersz,
    *Wytnij zaznaczony* i zaznacz myszką mały, charakterystyczny fragment.
    *Test na obecnym ekranie* pokaże, co bot teraz rozpoznaje.
-3. **Strategia** - wejdź w grze na Infernal i kliknij **Nagrywaj**. W grze wciśnij skrót wieży
-   (K wioska, Z snajper, F alchemik) i kliknij, gdzie ma stać - zapisuje się dokładne miejsce kliknięcia,
-   więc bot kliknie potem w to samo miejsce. Kliknij **Zatrzymaj nagrywanie**: zmienią się tylko pozycje
-   `at: [...]` pasujących linii `place`, ulepszenia zostają bez zmian. *Zapisz*.
+3. **Małpki** - wieże stawiane na początku każdej gry, w kolejności, z trzema polami ulepszeń
+   (da się wybrać tylko kombinacje dozwolone w grze). Wejdź w grze na mapę, kliknij **Ustaw pozycję**
+   przy małpce: bot przełączy na grę i wciśnie jej skrót, a Ty najeżdżasz myszką i klikasz, gdzie ma stać -
+   zapisuje się dokładnie to kliknięcie. Zmiany zapisują się od razu.
+   Zakładka **Strategia (YAML)** pokazuje tę samą strategię jako tekst do zaawansowanej edycji.
 4. **Uruchom** - najpierw `Gier = 1`, potem `0` (bez końca). **F7** pauza, **F8** stop.
 
 Bez GUI: `python -m btd6bot run strategies/infernal_deflation.yaml --games 1`.

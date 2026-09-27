@@ -13,6 +13,7 @@ PL: Wszystkie widoczne teksty pochodzą z i18n.py; język wybiera się w prawym 
 from __future__ import annotations
 
 import base64
+import ctypes
 import logging
 import queue
 import re
@@ -30,8 +31,10 @@ import yaml
 from . import __version__
 from .app import STRATEGIES_DIR, build_runtime, load_user_settings, load_yaml, save_user_settings, start_hotkeys
 from .control import Control
-from .i18n import LANGUAGES, default_language, translate
-from .recorder import LiveRecorder, PositionRecorder, apply_positions
+from .i18n import LANGUAGES, STRINGS, default_language, translate
+from .recorder import ClickCatcher
+from .strategy import Monkey, allowed_tiers, is_valid_path, monkeys_from_steps, replace_steps, steps_yaml, unique_name
+from .window import IS_WINDOWS
 
 log = logging.getLogger("btd6bot")
 
@@ -201,14 +204,18 @@ class App(tk.Tk):
         self.bot_thread: threading.Thread | None = None
         self.control: Control | None = None
         self.strategy_path: Path | None = None
-        self.live_recorder: LiveRecorder | None = None
-        self._record_dirty = False
+        self.monkeys: list[Monkey] = []
+        self._monkeys_other = False  # strategy has steps this tab can't show / PL: kroki spoza tej zakładki
+        self._placing = 0
+        self.catcher: ClickCatcher | None = None
+        self._click_events: queue.Queue = queue.Queue()
 
         self._build_top()
         self.notebook = ttk.Notebook(self)
         self._build_status_bar()  # packed before the notebook so it stays visible / PL: zawsze widoczny
         self.notebook.pack(fill="both", expand=True, padx=8, pady=(0, 4))
         self._build_templates_tab()
+        self._build_monkeys_tab()
         self._build_strategy_tab()
         self._build_run_tab()
         self._build_config_tab()
@@ -224,11 +231,6 @@ class App(tk.Tk):
         widget.configure(**{option: self.t(key)})
         self._texts.append((widget, key, option))
         return widget
-
-    def retext(self, widget: tk.Widget, key: str, option: str = "text") -> None:
-        """Switch a registered widget to another translation key. / PL: Zmień klucz tłumaczenia widżetu."""
-        self._texts = [(w, k, o) if w is not widget else (w, key, o) for w, k, o in self._texts]
-        widget.configure(**{option: self.t(key)})
 
     def add_tab(self, key: str) -> ttk.Frame:
         tab = ttk.Frame(self.notebook)
@@ -247,7 +249,7 @@ class App(tk.Tk):
         self.refresh_templates()
         self._show_window_info()
         self._show_stats()
-        self._show_record_status()
+        self.render_monkeys()
 
     # ------------------------------------------------------------------ top bar / górny pasek
     def _build_top(self) -> None:
@@ -455,6 +457,201 @@ class App(tk.Tk):
         self._visible = {n: bool(lib.find(n, gray)) for n in lib.names()}
         self.refresh_templates()
 
+    # ------------------------------------------------------------------ monkeys / małpki
+    def _build_monkeys_tab(self) -> None:
+        tab = self.add_tab("tab_monkeys")
+        self.tab_monkeys = tab
+        self.tw(ttk.Label(tab, wraplength=940, justify="left"), "monkeys_help").pack(anchor="w", padx=6, pady=6)
+        self.lbl_monkeys_file = ttk.Label(tab, text="", foreground="#808080")
+        self.lbl_monkeys_file.pack(anchor="w", padx=6)
+        self.monkeys_frame = ttk.Frame(tab)
+        self.monkeys_frame.pack(fill="x", padx=6, pady=6)
+        row = ttk.Frame(tab)
+        row.pack(fill="x", padx=6, pady=6)
+        self.var_new_tower = tk.StringVar()
+        self._new_tower_keys: dict[str, str] = {}
+        self.cmb_new_tower = ttk.Combobox(row, textvariable=self.var_new_tower, width=24, state="readonly")
+        self.cmb_new_tower.pack(side="left")
+        self.tw(ttk.Button(row, command=self.add_monkey), "add_monkey").pack(side="left", padx=4)
+        self.lbl_monkeys_status = ttk.Label(tab, text="", font=("Segoe UI", 10, "bold"))
+        self.lbl_monkeys_status.pack(anchor="w", padx=6, pady=6)
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+
+    def tower_label(self, tower: str) -> str:
+        return self.t(f"tower_{tower}") if f"tower_{tower}" in STRINGS else tower
+
+    def _on_tab_changed(self, _event=None) -> None:
+        # The YAML may have been edited by hand in the Strategy tab. / PL: YAML mógł być edytowany ręcznie.
+        if self.notebook.select() == str(self.tab_monkeys):
+            self.refresh_monkeys()
+
+    def refresh_monkeys(self) -> None:
+        try:
+            data = yaml.safe_load(self.strategy_text.get("1.0", "end-1c")) or {}
+            self.monkeys, self._monkeys_other = monkeys_from_steps(data.get("steps"))
+            self.lbl_monkeys_status.configure(text="")
+        except (yaml.YAMLError, AttributeError, KeyError, TypeError):
+            self.monkeys, self._monkeys_other = [], False
+            self.lbl_monkeys_status.configure(text=self.t("yaml_broken"), foreground="#d70015")
+        self.render_monkeys()
+
+    def render_monkeys(self) -> None:
+        for child in self.monkeys_frame.winfo_children():
+            child.destroy()
+        name = self.strategy_path.name if self.strategy_path else "-"
+        self.lbl_monkeys_file.configure(text=self.t("monkeys_file", name=name))
+        towers = sorted((self.cfg.get("hotkeys", {}).get("towers") or {}).keys(), key=self.tower_label)
+        self._new_tower_keys = {self.tower_label(t): t for t in towers}
+        self.cmb_new_tower.configure(values=list(self._new_tower_keys))
+        if self.var_new_tower.get() not in self._new_tower_keys and towers:
+            self.var_new_tower.set(self.tower_label(towers[0]))
+
+        f = self.monkeys_frame
+        for col, key in enumerate(["col_monkey", "col_top", "col_middle", "col_bottom", "col_position"]):
+            ttk.Label(f, text=self.t(key), font=("Segoe UI", 9, "bold")).grid(
+                row=0, column=col, padx=6, pady=(0, 4), sticky="w")
+        for row, m in enumerate(self.monkeys, start=1):
+            i = row - 1
+            ttk.Label(f, text=f"{row}. {self.tower_label(m.tower)}  ({m.name})").grid(
+                row=row, column=0, padx=6, pady=2, sticky="w")
+            for j in range(3):
+                tiers = allowed_tiers(m.path, j)
+                var = tk.StringVar(value=str(m.path[j]))
+                # Only rule-compliant tiers are offered; a locked path is disabled.
+                # PL: Do wyboru tylko poziomy zgodne z zasadami; zablokowana ścieżka jest wyłączona.
+                combo = ttk.Combobox(f, textvariable=var, values=[str(v) for v in tiers], width=3,
+                                     state="readonly" if len(tiers) > 1 else "disabled")
+                combo.grid(row=row, column=1 + j, padx=6, pady=2)
+                combo.bind("<<ComboboxSelected>>", lambda _e, i=i, j=j, v=var: self.set_tier(i, j, int(v.get())))
+            if m.at:
+                ttk.Label(f, text=f"[{m.at[0]}, {m.at[1]}]").grid(row=row, column=4, padx=6, sticky="w")
+            else:
+                ttk.Label(f, text=self.t("not_set"), foreground="#d70015").grid(row=row, column=4, padx=6, sticky="w")
+            ttk.Button(f, text=self.t("set_position"), command=lambda i=i: self.set_position(i)).grid(
+                row=row, column=5, padx=6, pady=2)
+            ttk.Button(f, text="↑", width=3, command=lambda i=i: self.move_monkey(i, -1)).grid(row=row, column=6)
+            ttk.Button(f, text="↓", width=3, command=lambda i=i: self.move_monkey(i, 1)).grid(row=row, column=7)
+            ttk.Button(f, text="✕", width=3, command=lambda i=i: self.remove_monkey(i)).grid(
+                row=row, column=8, padx=(6, 0))
+
+    def apply_monkeys(self) -> bool:
+        """Write the monkey list into the strategy (editor + file). / PL: Zapisz listę małpek do strategii."""
+        if self._monkeys_other:
+            if not messagebox.askyesno(APP_TITLE, self.t("other_steps")):
+                self.refresh_monkeys()
+                return False
+            self._monkeys_other = False
+        text = replace_steps(self.strategy_text.get("1.0", "end-1c"), steps_yaml(self.monkeys))
+        self.strategy_text.delete("1.0", "end")
+        self.strategy_text.insert("1.0", text)
+        if self.strategy_path:
+            self.strategy_path.write_text(text, encoding="utf-8")
+            self.lbl_monkeys_status.configure(text=self.t("monkeys_saved", name=self.strategy_path.name),
+                                              foreground="#248a3d")
+        self.render_monkeys()
+        return True
+
+    def set_tier(self, index: int, path_index: int, tier: int) -> None:
+        path = list(self.monkeys[index].path)
+        path[path_index] = tier
+        if is_valid_path(path):
+            self.monkeys[index].path = path
+            self.apply_monkeys()
+
+    def add_monkey(self) -> None:
+        tower = self._new_tower_keys.get(self.var_new_tower.get())
+        if tower:
+            self.monkeys.append(Monkey(tower, unique_name(tower, {m.name for m in self.monkeys})))
+            self.apply_monkeys()
+
+    def remove_monkey(self, index: int) -> None:
+        self.monkeys.pop(index)
+        self.apply_monkeys()
+
+    def move_monkey(self, index: int, delta: int) -> None:
+        target = index + delta
+        if 0 <= target < len(self.monkeys):
+            self.monkeys[index], self.monkeys[target] = self.monkeys[target], self.monkeys[index]
+            self.apply_monkeys()
+
+    def set_position(self, index: int) -> None:
+        """Switch to the game, press the tower hotkey and wait for the user's click.
+
+        PL: Przełącz na grę, wciśnij skrót wieży i czekaj na kliknięcie użytkownika.
+        """
+        if self.catcher:
+            return
+        monkey = self.monkeys[index]
+        key = (self.cfg.get("hotkeys", {}).get("towers") or {}).get(monkey.tower)
+        if key is None:
+            messagebox.showerror(APP_TITLE, self.t("err_unknown_tower", tower=monkey.tower))
+            return
+        try:
+            rt = build_runtime(self.current_cfg(), with_input=False)
+        except Exception as exc:
+            messagebox.showerror(APP_TITLE, str(exc))
+            return
+        self._placing = index
+        self.catcher = ClickCatcher(rt.game, on_click=lambda rel: self._click_events.put(("click", rel)),
+                                    on_cancel=lambda: self._click_events.put(("cancel", None)))
+        self.lbl_monkeys_status.configure(text=self.t("place_waiting", monkey=self.tower_label(monkey.tower)),
+                                          foreground="#0a60d0")
+        self.update_idletasks()
+        try:
+            from .inputs import ForegroundInput, _bring_to_front
+
+            if IS_WINDOWS and rt.game.hwnd:
+                _bring_to_front(rt.game.hwnd)
+                time.sleep(0.3)
+            game_input = ForegroundInput(rt.game, 0.05)
+            game_input.move((0.5, 0.5))  # so the tower appears on the map / PL: żeby wieża pojawiła się na mapie
+            game_input.press(str(key))
+        except Exception as exc:  # the user can still press the hotkey by hand / PL: można wcisnąć ręcznie
+            log.warning("Could not switch to the game / nie udało się przełączyć na grę: %s", exc)
+        # Listen only from now on, so the click on this button is not caught.
+        # PL: Słuchamy dopiero od teraz, żeby nie złapać kliknięcia w ten przycisk.
+        self.catcher.start()
+        catcher = self.catcher
+        self.after(60000, lambda: self._placing_timeout(catcher))
+
+    def _placing_timeout(self, catcher: ClickCatcher) -> None:
+        if self.catcher is catcher:
+            catcher.stop()
+            self.catcher = None
+            self.lbl_monkeys_status.configure(text=self.t("place_timeout"), foreground="#d70015")
+            self._bring_gui_back()
+
+    def _handle_click_events(self) -> None:
+        while not self._click_events.empty():
+            kind, rel = self._click_events.get_nowait()
+            if self.catcher is None:
+                continue
+            self.catcher = None
+            monkey = self.monkeys[self._placing]
+            if kind == "click":
+                monkey.at = [rel[0], rel[1]]
+                self.apply_monkeys()
+                self.lbl_monkeys_status.configure(
+                    text=self.t("place_saved", monkey=self.tower_label(monkey.tower), pos=f"[{rel[0]}, {rel[1]}]"),
+                    foreground="#248a3d")
+            else:
+                self.lbl_monkeys_status.configure(text=self.t("place_cancelled"), foreground="#808080")
+            self._bring_gui_back()
+
+    def _bring_gui_back(self) -> None:
+        self.deiconify()
+        self.lift()
+        self.attributes("-topmost", True)
+        self.after(300, lambda: self.attributes("-topmost", False))
+        if IS_WINDOWS:
+            try:
+                from .inputs import _bring_to_front
+
+                _bring_to_front(ctypes.windll.user32.GetParent(self.winfo_id()))
+            except Exception:
+                pass
+        self.focus_force()
+
     # ------------------------------------------------------------------ strategy / strategia
     def _build_strategy_tab(self) -> None:
         tab = self.add_tab("tab_strategy")
@@ -468,34 +665,8 @@ class App(tk.Tk):
         self.cmb_strategy.bind("<<ComboboxSelected>>", lambda _: self.load_strategy())
         self.tw(ttk.Button(row, command=self.save_strategy), "save").pack(side="left", padx=4)
         self.tw(ttk.Button(row, command=self.save_strategy_as), "save_as").pack(side="left")
-
-        box = self.tw(ttk.LabelFrame(tab), "record_box")
-        box.pack(fill="x", padx=6, pady=(0, 6))
-        self.tw(ttk.Label(box, wraplength=940, justify="left"), "record_help").pack(anchor="w", padx=6, pady=(4, 2))
-        row = ttk.Frame(box)
-        row.pack(fill="x", padx=6, pady=(0, 6))
-        self.btn_record = self.tw(ttk.Button(row, command=self.toggle_recording), "record_start")
-        self.btn_record.pack(side="left")
-        self.tw(ttk.Button(row, command=self.undo_recording), "record_undo").pack(side="left", padx=4)
-        self.lbl_record = ttk.Label(row, text="")
-        self.lbl_record.pack(side="left", padx=8)
-
-        row = self.tw(ttk.LabelFrame(tab), "add_tower_box")
-        row.pack(fill="x", padx=6)
-        towers = sorted((self.cfg.get("hotkeys", {}).get("towers") or {}).keys())
-        self.var_tower = tk.StringVar(value="sniper")
-        self.var_tname = tk.StringVar(value="sniper1")
-        self.var_path = [tk.IntVar(value=0) for _ in range(3)]
-        ttk.Combobox(row, textvariable=self.var_tower, values=towers, width=10, state="readonly").pack(
-            side="left", padx=4, pady=4)
-        self.tw(ttk.Label(row), "name").pack(side="left")
-        ttk.Entry(row, textvariable=self.var_tname, width=10).pack(side="left", padx=4)
-        self.tw(ttk.Label(row), "upgrades").pack(side="left")
-        for var in self.var_path:
-            ttk.Spinbox(row, textvariable=var, from_=0, to=5, width=3).pack(side="left", padx=1)
-        self.tw(ttk.Button(row, command=self.add_tower), "pick_add").pack(side="left", padx=6)
-        self.tw(ttk.Button(row, command=self.insert_point), "insert_point").pack(side="left")
-
+        self.tw(ttk.Label(tab, wraplength=940, justify="left", foreground="#808080"), "strategy_help").pack(
+            anchor="w", padx=6)
         self.strategy_text = scrolledtext.ScrolledText(tab, font=("Consolas", 10), undo=True)
         self.strategy_text.pack(fill="both", expand=True, padx=6, pady=6)
         if files:
@@ -503,72 +674,11 @@ class App(tk.Tk):
             self.var_strategy.set(preferred)
             self.load_strategy()
 
-    # ------------------------------------------------------------------ recording / nagrywanie
-    def toggle_recording(self) -> None:
-        if self.live_recorder:
-            self.stop_recording()
-            return
-        try:
-            rt = build_runtime(self.current_cfg(), with_input=False)
-        except Exception as exc:
-            messagebox.showerror(APP_TITLE, str(exc))
-            return
-        recorder = PositionRecorder(self.cfg.get("hotkeys", {}).get("towers") or {})
-        try:
-            self.live_recorder = LiveRecorder(recorder, rt.game, self._mark_record_dirty)
-            self.live_recorder.start()
-        except Exception as exc:  # pynput missing / no display / PL: brak pynput
-            self.live_recorder = None
-            messagebox.showerror(APP_TITLE, str(exc))
-            return
-        self.retext(self.btn_record, "record_stop")
-        self._show_record_status()
-        log.info(self.t("record_started"))
-
-    def stop_recording(self) -> None:
-        live, self.live_recorder = self.live_recorder, None
-        if live is None:
-            return
-        live.stop()
-        self.retext(self.btn_record, "record_start")
-        self.lbl_record.configure(text="")
-        placements = live.recorder.placements
-        if not placements:
-            return
-        text, updated, unmatched = apply_positions(self.strategy_text.get("1.0", "end-1c"), placements)
-        self.strategy_text.delete("1.0", "end")
-        self.strategy_text.insert("1.0", text)
-        log.info(self.t("record_applied", n=updated))
-        if unmatched:
-            messagebox.showwarning(APP_TITLE, self.t("record_unmatched", towers=", ".join(unmatched)))
-
-    def undo_recording(self) -> None:
-        if self.live_recorder:
-            with self.live_recorder.lock:
-                self.live_recorder.recorder.undo()
-            self._show_record_status()
-
-    def _mark_record_dirty(self) -> None:
-        # Called from the pynput thread - tkinter must only be touched from the GUI thread.
-        # PL: Wołane z wątku pynput - tkintera wolno dotykać tylko z wątku GUI.
-        self._record_dirty = True
-
-    def _show_record_status(self) -> None:
-        if not self.live_recorder:
-            return
-        rec = self.live_recorder.recorder
-        with self.live_recorder.lock:
-            last = "{} {}".format(rec.placements[-1][0], list(rec.placements[-1][1])) if rec.placements else "-"
-            count, waiting = len(rec.placements), rec.pending
-        text = self.t("record_status", n=count, last=last)
-        if waiting:
-            text += "  " + self.t("record_pending", tower=waiting)
-        self.lbl_record.configure(text=text)
-
     def load_strategy(self) -> None:
         self.strategy_path = STRATEGIES_DIR / self.var_strategy.get()
         self.strategy_text.delete("1.0", "end")
         self.strategy_text.insert("1.0", self.strategy_path.read_text(encoding="utf-8"))
+        self.refresh_monkeys()
 
     def validate_strategy(self, text: str) -> dict | None:
         try:
@@ -577,14 +687,23 @@ class App(tk.Tk):
             if not isinstance(steps, list) or not steps:
                 raise ValueError(self.t("err_steps"))
             towers = (self.cfg.get("hotkeys", {}).get("towers") or {})
-            names = set()
+            paths: dict[str, list[int]] = {}
             for step in steps:
                 if "place" in step:
-                    if step["place"]["tower"] not in towers:
-                        raise ValueError(self.t("err_unknown_tower", tower=step["place"]["tower"]))
-                    names.add(step["place"].get("name", step["place"]["tower"]))
-                if "upgrade" in step and step["upgrade"]["name"] not in names:
-                    raise ValueError(self.t("err_upgrade_first", name=step["upgrade"]["name"]))
+                    place = step["place"]
+                    if place["tower"] not in towers:
+                        raise ValueError(self.t("err_unknown_tower", tower=place["tower"]))
+                    name = place.get("name", place["tower"])
+                    if not (isinstance(place.get("at"), list) and len(place["at"]) == 2):
+                        raise ValueError(self.t("err_no_position", name=name))
+                    paths[name] = [0, 0, 0]
+                if "upgrade" in step:
+                    name = step["upgrade"]["name"]
+                    if name not in paths:
+                        raise ValueError(self.t("err_upgrade_first", name=name))
+                    paths[name] = [a + b for a, b in zip(paths[name], step["upgrade"]["path"])]
+                    if not is_valid_path(paths[name]):
+                        raise ValueError(self.t("err_invalid_path", name=name, path="-".join(map(str, paths[name]))))
             return data
         except Exception as exc:
             messagebox.showerror(APP_TITLE, self.t("strategy_error", err=exc))
@@ -606,33 +725,7 @@ class App(tk.Tk):
         self.save_strategy()
         self.cmb_strategy.configure(values=sorted(p.name for p in STRATEGIES_DIR.glob("*.yaml")))
         self.var_strategy.set(self.strategy_path.name)
-
-    def strategy_markers(self) -> list[tuple[float, float, str]]:
-        try:
-            data = yaml.safe_load(self.strategy_text.get("1.0", "end-1c")) or {}
-        except yaml.YAMLError:
-            return []
-        markers = []
-        for step in data.get("steps") or []:
-            place = step.get("place") if isinstance(step, dict) else None
-            if place and isinstance(place.get("at"), list):
-                markers.append((place["at"][0], place["at"][1], place.get("name", place["tower"])))
-        return markers
-
-    def add_tower(self) -> None:
-        def done(pos):
-            name, tower = self.var_tname.get().strip(), self.var_tower.get()
-            path = [v.get() for v in self.var_path]
-            lines = f"  - place: {{tower: {tower}, name: {name}, at: [{pos[0]}, {pos[1]}]}}\n"
-            if any(path):
-                lines += f"  - upgrade: {{name: {name}, path: [{path[0]}, {path[1]}, {path[2]}]}}\n"
-            self.strategy_text.insert("insert linestart", lines)
-
-        ScreenshotPicker(self, "point", done, self.strategy_markers())
-
-    def insert_point(self) -> None:
-        ScreenshotPicker(self, "point", lambda pos: self.strategy_text.insert("insert", f"[{pos[0]}, {pos[1]}]"),
-                         self.strategy_markers())
+        self.render_monkeys()
 
     # ------------------------------------------------------------------ run / uruchamianie
     def _build_run_tab(self) -> None:
@@ -697,9 +790,7 @@ class App(tk.Tk):
             self.lbl_stats.configure(text=self.t("stats", **self._stats))
 
     def _poll_log(self) -> None:
-        if self._record_dirty:
-            self._record_dirty = False
-            self._show_record_status()
+        self._handle_click_events()
         while not self.log_queue.empty():
             item = self.log_queue.get_nowait()
             if isinstance(item, tuple):
@@ -735,8 +826,8 @@ class App(tk.Tk):
         log.info(self.t("config_saved"))
 
     def on_close(self) -> None:
-        if self.live_recorder:
-            self.live_recorder.stop()
+        if self.catcher:
+            self.catcher.stop()
         if self.control:
             self.control.stop()
         self.destroy()

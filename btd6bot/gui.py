@@ -50,6 +50,7 @@ CAPTURE_MODES = ["auto", "window", "screen"]
 ON_DEFEAT = ["restart", "menu", "stop"]  # what to do after a defeat / PL: co zrobić po przegranej
 INPUT_MODES = ["burst", "foreground", "background"]
 APP_TITLE = "BTD6 XP Bot"
+AUTHOR = "Zarzu"
 
 
 def format_duration(seconds: float) -> str:
@@ -194,7 +195,7 @@ class ScreenshotPicker(tk.Toplevel):
 class App(tk.Tk):
     def __init__(self, config_path: Path):
         super().__init__()
-        self.title(f"{APP_TITLE} v{__version__}")
+        self.title(f"{APP_TITLE} v{__version__} by {AUTHOR}")
         self.geometry("1000x740")
         self.config_path = config_path
         self.cfg = load_yaml(config_path)

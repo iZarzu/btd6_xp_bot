@@ -37,7 +37,7 @@ log = logging.getLogger("btd6bot")
 # (name, required) - descriptions are in i18n.py as "tpl_<name>". / PL: opisy są w i18n.py.
 TEMPLATES = [
     ("victory", True), ("defeat", True), ("next", True), ("home", True), ("play", True),
-    ("expert", False), ("map", True), ("easy", True), ("deflation", True), ("ok", False),
+    ("expert", False), ("arrow_right", False), ("map", True), ("easy", True), ("deflation", True), ("ok", False),
     ("ingame", False), ("levelup", False), ("restart", False), ("confirm", False),
 ]
 

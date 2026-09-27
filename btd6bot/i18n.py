@@ -59,6 +59,8 @@ STRINGS: dict[str, dict[str, str]] = {
     "tpl_home": {"en": "home button after a game", "pl": "przycisk domku po grze"},
     "tpl_play": {"en": "'Play' button in the main menu", "pl": "przycisk 'Play' w menu głównym"},
     "tpl_expert": {"en": "'Expert' map category tab", "pl": "zakładka map 'Expert'"},
+    "tpl_arrow_right": {"en": "right arrow in the map list (next page)",
+                        "pl": "strzałka w prawo na liście map (następna strona)"},
     "tpl_map": {"en": "map thumbnail (e.g. Infernal)", "pl": "miniatura mapy (np. Infernal)"},
     "tpl_easy": {"en": "'Easy' difficulty button", "pl": "przycisk trudności 'Easy'"},
     "tpl_deflation": {"en": "'Deflation' mode button", "pl": "przycisk trybu 'Deflation'"},

@@ -88,6 +88,7 @@ steps:                            # done at the start of each game
 | `sell: name` | sell a tower |
 | `click: [x, y]` / `click: button` | click a point / a named button from `config.yaml -> buttons` |
 | `click_template: name` | wait for an image and click it (`optional`, `timeout`) |
+| `click_template: name` + `next_page: arrow_right` | not on this page -> click the arrow (template or `[x, y]`) and search the next page (`max_pages`) |
 | `wait_for: name` | wait for an image |
 | `key: esc` | press a key (`times`) |
 | `wait: 2` | wait N seconds |
@@ -179,6 +180,8 @@ Bez GUI: `python -m btd6bot run strategies/infernal_deflation.yaml --games 1`.
 
 Format strategii i lista kroków - patrz sekcja angielska powyżej (tabela *Step*): `place`, `upgrade`,
 `sell`, `click`, `click_template`, `wait_for`, `key`, `wait`.
+`click_template` z opcją `next_page: arrow_right` szuka mapy na kolejnych stronach listy map
+(klika strzałkę w prawo, dopóki jej nie znajdzie).
 
 ### Jak farmić najefektywniej
 

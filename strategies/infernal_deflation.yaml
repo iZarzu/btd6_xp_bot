@@ -23,8 +23,10 @@ start_game:
   - click_template: expert        # Expert map tab (skipped if missing) / zakładka map Expert
     optional: true
     timeout: 5
-  - click_template: map           # Infernal thumbnail. If it is on another page add a `click` on the arrow before.
-                                  # PL: miniatura Infernal. Jeśli jest na innej stronie - dodaj wcześniej `click` w strzałkę.
+  - click_template: map           # Infernal thumbnail / miniatura Infernal
+    next_page: arrow_right        # not on this page -> click the right arrow and look again
+                                  # PL: nie ma na tej stronie -> klik w strzałkę w prawo i szukaj dalej
+    max_pages: 5
   - click_template: easy
   - click_template: deflation
   - click_template: ok            # mode rules popup / okienko zasad trybu

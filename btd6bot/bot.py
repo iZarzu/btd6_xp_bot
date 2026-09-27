@@ -150,7 +150,10 @@ class Bot:
             self.control.sleep(self.timings["menu_delay"])
         elif "click_template" in step:
             name = step["click_template"]
-            pos = self.wait_for_template(name, step.get("timeout", self.timings["load_timeout"]))
+            if "next_page" in step:
+                pos = self.find_with_paging(name, step)
+            else:
+                pos = self.wait_for_template(name, step.get("timeout", self.timings["load_timeout"]))
             if pos:
                 self.click(pos)
                 self.control.sleep(self.timings["menu_delay"])
@@ -217,6 +220,36 @@ class Bot:
     def grab_gray(self):
         frame = self.capture.grab()
         return None if frame is None else to_gray(frame)
+
+    def find_with_paging(self, name: str, step: dict[str, Any]) -> Point | None:
+        """Look for a template; if it is not there, click `next_page` and look again.
+
+        `next_page` is a template name (e.g. the right arrow in the map list) or a point [x, y].
+        Used for the map list, where the map's page changes whenever new maps are added.
+        PL: Szuka szablonu; jeśli go nie ma, klika `next_page` i szuka dalej.
+        `next_page` to nazwa szablonu (np. strzałka w prawo na liście map) albo punkt [x, y].
+        Przydatne na liście map, bo strona z mapą zmienia się, gdy dochodzą nowe mapy.
+        """
+        next_page = step["next_page"]
+        max_pages = int(step.get("max_pages", 10))
+        page_timeout = float(step.get("page_timeout", 3))
+        for page in range(max_pages + 1):
+            pos = self.wait_for_template(name, page_timeout)
+            if pos:
+                return pos
+            if page == max_pages:
+                break
+            if isinstance(next_page, str) and self.templates.exists(next_page):
+                arrow = self.wait_for_template(next_page, page_timeout)
+                if arrow is None:
+                    log.warning("Next-page button '%s' not found.", next_page)
+                    return None
+            else:
+                arrow = self.resolve_point(next_page)
+            log.info("'%s' not on this page, going to the next one (%d/%d).", name, page + 1, max_pages)
+            self.click(arrow)
+            self.control.sleep(self.timings["menu_delay"])
+        return None
 
     def wait_for_template(self, name: str, timeout: float) -> Point | None:
         if not self.templates.exists(name):

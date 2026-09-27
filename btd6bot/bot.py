@@ -19,14 +19,18 @@ Point = tuple[float, float]
 # Popups closed automatically whenever they show up (plus `dismiss_templates` from config.yaml).
 # PL: Okienka zamykane automatycznie, gdy się pojawią (plus `dismiss_templates` z config.yaml).
 BUILTIN_POPUPS = ("levelup", "mk_point")
-POLL_INTERVAL = 0.15
+POLL_INTERVAL = 0.15  # seconds between screen checks while waiting / PL: odstęp między sprawdzeniami ekranu
 END_SCREENS = ("victory", "defeat")
 # Safety stop: this many defeats in a row, each within QUICK_DEFEAT_SECONDS of the start, means the
 # bot is stuck in a loop (e.g. it keeps seeing an old defeat screen), not that the strategy is bad.
 # PL: Bezpiecznik: tyle przegranych z rzędu, każda w QUICK_DEFEAT_SECONDS od startu, oznacza pętlę
 # (np. bot widzi wciąż stary ekran przegranej), a nie słabą strategię.
 QUICK_DEFEAT_LIMIT = 3
-QUICK_DEFEAT_SECONDS = 15  # seconds between screen checks while waiting / PL: odstęp między sprawdzeniami ekranu
+QUICK_DEFEAT_SECONDS = 15
+
+
+def _same_place(a: Point, b: Point) -> bool:
+    return abs(a[0] - b[0]) < 0.005 and abs(a[1] - b[1]) < 0.005
 
 
 @dataclass
@@ -164,26 +168,71 @@ class Bot:
             log.info("Waiting %d s for the map to load - capture the 'ingame' template to start right away.",
                      self.timings["load_delay"])
             self.control.sleep(self.timings["load_delay"])
+            self._clear_popups(5)
         self.control.sleep(self.timings.get("after_load_delay", 1.0))
 
     def _wait_for_map(self, timeout: float) -> bool:
-        """'ingame' visible (twice in a row) and no end screen on top of it. The 'ingame' element (e.g. the
-        heart icon) can also be visible on the victory/defeat screen, which is still fading out after Restart.
+        """The map is ready when 'ingame' is visible twice in a row with nothing on top of it.
+        Popups that appear meanwhile (the mode's rules with OK, level-up...) are closed - the HUD is
+        already visible under them, so without this the first tower click would land in the popup.
+        End screens are excluded too: the 'ingame' element (e.g. the heart icon) is also on the
+        defeat screen, which is still fading out after Restart.
 
-        PL: 'ingame' widoczne (dwa razy z rzędu) i żadnego ekranu końca gry. Element 'ingame' (np. serduszko)
-        może być widoczny też na ekranie wygranej/przegranej, który po Restart jeszcze znika.
+        PL: Mapa jest gotowa, gdy 'ingame' widać dwa razy z rzędu i nic go nie zasłania.
+        Okienka, które się w tym czasie pojawią (zasady trybu z OK, awans...), są zamykane - HUD widać
+        już pod nimi, więc bez tego pierwsze kliknięcie wieży trafiłoby w okienko.
+        Wykluczone są też ekrany końca gry: element 'ingame' (np. serduszko) jest też na ekranie
+        przegranej, który po Restart jeszcze znika.
         """
+        popups = self.map_popups()
         deadline = time.monotonic() + timeout
         seen = 0
+        last_popup: tuple[str, Point] | None = None
         while time.monotonic() < deadline:
             frame = self.grab_gray()
             if frame is not None:
-                end_screen = any(self.templates.find(n, frame) for n in END_SCREENS if self.templates.exists(n))
-                seen = seen + 1 if not end_screen and self.templates.find("ingame", frame) else 0
-                if seen >= 2:
-                    return True
+                popup = next(((n, pos) for n in popups if (pos := self.templates.find(n, frame))), None)
+                if popup:
+                    seen = 0
+                    # Click only when it stopped moving (popups pop in with an animation).
+                    # PL: Klik dopiero, gdy przestanie się ruszać (okienka wyskakują z animacją).
+                    if last_popup and last_popup[0] == popup[0] and _same_place(last_popup[1], popup[1]):
+                        log.info("Closing popup '%s'.", popup[0])
+                        self.click(popup[1])
+                        last_popup = None
+                        self.control.sleep(0.5)
+                        continue
+                    last_popup = popup
+                else:
+                    last_popup = None
+                    end_screen = any(self.templates.find(n, frame) for n in END_SCREENS if self.templates.exists(n))
+                    seen = seen + 1 if not end_screen and self.templates.find("ingame", frame) else 0
+                    if seen >= 2:
+                        return True
             self.control.sleep(POLL_INTERVAL)
         return False
+
+    def map_popups(self) -> list[str]:
+        """Popups that may cover a freshly loaded map ('ok' = the mode's rules). / PL: Okienka na nowej mapie."""
+        names = self.popups()
+        if "ok" not in names:
+            names.append("ok")
+        return [n for n in names if self.templates.exists(n)]
+
+    def _clear_popups(self, timeout: float) -> None:
+        """Without an 'ingame' template: close popups until none is visible for a moment.
+        PL: Bez szablonu 'ingame': zamykaj okienka, aż przez chwilę żadnego nie będzie."""
+        popups = self.map_popups()
+        deadline = time.monotonic() + timeout
+        clear = 0
+        while popups and time.monotonic() < deadline and clear < 3:
+            frame = self.grab_gray()
+            if frame is not None and self._close_popups(frame, popups):
+                clear = 0
+                self.control.sleep(0.5)
+                continue
+            clear += 1
+            self.control.sleep(POLL_INTERVAL)
 
     def wait_until_gone(self, names: tuple[str, ...], timeout: float) -> bool:
         """Wait until none of the templates is on screen. / PL: Czekaj, aż żadnego szablonu nie będzie na ekranie."""

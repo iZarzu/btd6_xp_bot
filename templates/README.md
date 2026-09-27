@@ -21,7 +21,7 @@ skalowane na innych ekranach (Full HD <-> 4K).
 | `map` | Infernal thumbnail / miniatura Infernal | yes / tak |
 | `easy` | Easy difficulty / trudność Easy | yes / tak |
 | `deflation` | Deflation mode / tryb Deflation | yes / tak |
-| `ok` | "OK" in the rules popup / „OK” w okienku zasad | no / nie |
+| `ok` | "OK" in the rules popup / „OK” w okienku zasad | recommended / zalecany |
 | `ingame` | static HUD element / stały element HUD | no (faster / szybciej) |
 | `levelup` | level-up popup / okienko awansu | no / nie |
 | `mk_point` | "Monkey Knowledge Point" text (no number) / napis bez liczby | no / nie |

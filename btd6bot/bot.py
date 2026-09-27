@@ -239,7 +239,9 @@ class Bot:
                 return pos
             if page == max_pages:
                 break
-            if isinstance(next_page, str) and self.templates.exists(next_page):
+            if isinstance(next_page, str) and next_page not in self.buttons:
+                # A template name; wait_for_template warns if it was never captured.
+                # PL: Nazwa szablonu; wait_for_template ostrzeże, jeśli nie został wycięty.
                 arrow = self.wait_for_template(next_page, page_timeout)
                 if arrow is None:
                     log.warning("Next-page button '%s' not found.", next_page)
